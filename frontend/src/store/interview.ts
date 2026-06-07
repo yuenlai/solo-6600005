@@ -30,6 +30,10 @@ interface InterviewState {
   updateParticipant: (participant: ParticipantStatus) => void;
   setIsConnected: (connected: boolean) => void;
   resetRoom: () => void;
+  setProblems: (problems: Problem[]) => void;
+  addProblem: (problem: Problem) => void;
+  updateProblem: (problem: Problem) => void;
+  removeProblem: (problemId: string) => void;
 }
 
 export const useInterviewStore = create<InterviewState>((set) => ({
@@ -68,4 +72,12 @@ export const useInterviewStore = create<InterviewState>((set) => ({
     currentRoom: null, deprecatedRoom: null, room: null,
     invitations: [], participants: [], isConnected: false,
   }),
+  setProblems: (problems) => set({ problems }),
+  addProblem: (problem) => set((state) => ({ problems: [problem, ...state.problems] })),
+  updateProblem: (problem) => set((state) => ({
+    problems: state.problems.map((p) => p.id === problem.id ? problem : p),
+  })),
+  removeProblem: (problemId) => set((state) => ({
+    problems: state.problems.filter((p) => p.id !== problemId),
+  })),
 }));

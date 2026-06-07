@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, Link, useLocation } from 'react-router-dom';
 import { JoinRoomPage } from './components/JoinRoomPage';
 import { InterviewerRoomView } from './components/InterviewerRoomView';
 import CandidateRoomView from './components/CandidateRoomView';
+import { ProblemBankPage } from './components/ProblemBankPage';
 import { useInterviewStore } from './store/interview';
 import { InterviewRoom, User } from './types';
 import { CreateRoomModal } from './components/CreateRoomModal';
@@ -20,6 +21,7 @@ const InterviewerHomePage: React.FC = () => {
   const { currentUser, setCurrentUser, myRooms, setMyRooms, setCurrentRoom } = useInterviewStore();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     setCurrentUser(mockInterviewer);
@@ -61,6 +63,20 @@ const InterviewerHomePage: React.FC = () => {
     }
   };
 
+  const activeTab = location.pathname === '/problem-bank' ? 'bank' : 'interviews';
+
+  const tabButtonStyle = (active: boolean) => ({
+    padding: '12px 24px',
+    background: 'transparent',
+    border: 'none',
+    color: active ? '#fff' : '#888',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: active ? 500 : 400,
+    borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
+    transition: 'all 0.2s',
+  });
+
   return (
     <div style={{ minHeight: '100vh', background: '#0d0d0d', fontFamily: 'sans-serif' }}>
       <div style={{
@@ -85,41 +101,12 @@ const InterviewerHomePage: React.FC = () => {
             <div style={{ color: '#888', fontSize: '12px' }}>{currentUser?.role}</div>
           </div>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          style={{
-            padding: '10px 24px',
-            background: '#4caf50',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 500,
-          }}>
-          + 创建面试房间
-        </button>
-      </div>
-
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
-        <h1 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px 0' }}>我的面试</h1>
-        <p style={{ color: '#888', margin: '0 0 32px 0' }}>管理您创建的所有面试房间</p>
-
-        {myRooms.length === 0 ? (
-          <div style={{
-            background: '#1e1e1e',
-            borderRadius: '12px',
-            padding: '64px 24px',
-            textAlign: 'center',
-            border: '1px dashed #333',
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-            <h3 style={{ color: '#fff', margin: '0 0 8px 0' }}>暂无面试房间</h3>
-            <p style={{ color: '#888', margin: '0 0 24px 0' }}>点击右上角按钮创建您的第一个面试房间</p>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {activeTab === 'bank' ? null : (
             <button
               onClick={() => setIsCreateModalOpen(true)}
               style={{
-                padding: '12px 32px',
+                padding: '10px 24px',
                 background: '#4caf50',
                 color: '#fff',
                 border: 'none',
@@ -128,58 +115,118 @@ const InterviewerHomePage: React.FC = () => {
                 fontSize: '14px',
                 fontWeight: 500,
               }}>
-              创建面试房间
+              + 创建面试房间
             </button>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gap: '16px' }}>
-            {myRooms.map((room) => (
-              <div
-                key={room.id}
-                onClick={() => handleEnterRoom(room)}
-                style={{
-                  background: '#1e1e1e',
-                  borderRadius: '12px',
-                  padding: '20px 24px',
-                  border: '1px solid #333',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#4caf50';
-                  e.currentTarget.style.transform = 'translateX(4px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#333';
-                  e.currentTarget.style.transform = 'translateX(0)';
-                }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div>
-                    <h3 style={{ color: '#fff', margin: '0 0 4px 0', fontSize: '18px' }}>{room.title}</h3>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <span style={{ color: '#888', fontSize: '13px' }}>房间码: <span style={{ color: '#4caf50', fontFamily: 'monospace', fontWeight: 'bold' }}>{room.roomCode}</span></span>
-                      <span style={{
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        background: getStatusBadgeColor(room.status) + '20',
-                        color: getStatusBadgeColor(room.status),
-                      }}>
-                        {room.status}
-                      </span>
-                    </div>
-                  </div>
-                  <span style={{ color: '#4caf50', fontSize: '20px' }}>→</span>
-                </div>
-                <div style={{ color: '#666', fontSize: '12px' }}>
-                  创建于 {new Date(room.createdAt).toLocaleString('zh-CN')}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      <div style={{ background: '#1e1e1e', borderBottom: '1px solid #333' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', display: 'flex', gap: '8px' }}>
+          <Link
+            to="/"
+            style={{ textDecoration: 'none' }}
+          >
+            <button style={tabButtonStyle(activeTab === 'interviews')}>
+              📋 我的面试
+            </button>
+          </Link>
+          <Link
+            to="/problem-bank"
+            style={{ textDecoration: 'none' }}
+          >
+            <button style={tabButtonStyle(activeTab === 'bank')}>
+              📝 题库管理
+            </button>
+          </Link>
+        </div>
+      </div>
+
+      {activeTab === 'interviews' && (
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
+          <h1 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px 0' }}>我的面试</h1>
+          <p style={{ color: '#888', margin: '0 0 32px 0' }}>管理您创建的所有面试房间</p>
+
+          {myRooms.length === 0 ? (
+            <div style={{
+              background: '#1e1e1e',
+              borderRadius: '12px',
+              padding: '64px 24px',
+              textAlign: 'center',
+              border: '1px dashed #333',
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
+              <h3 style={{ color: '#fff', margin: '0 0 8px 0' }}>暂无面试房间</h3>
+              <p style={{ color: '#888', margin: '0 0 24px 0' }}>点击右上角按钮创建您的第一个面试房间</p>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                style={{
+                  padding: '12px 32px',
+                  background: '#4caf50',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}>
+                创建面试房间
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '16px' }}>
+              {myRooms.map((room) => (
+                <div
+                  key={room.id}
+                  onClick={() => handleEnterRoom(room)}
+                  style={{
+                    background: '#1e1e1e',
+                    borderRadius: '12px',
+                    padding: '20px 24px',
+                    border: '1px solid #333',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#4caf50';
+                    e.currentTarget.style.transform = 'translateX(4px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#333';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                  }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <div>
+                      <h3 style={{ color: '#fff', margin: '0 0 4px 0', fontSize: '18px' }}>{room.title}</h3>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <span style={{ color: '#888', fontSize: '13px' }}>房间码: <span style={{ color: '#4caf50', fontFamily: 'monospace', fontWeight: 'bold' }}>{room.roomCode}</span></span>
+                        <span style={{
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          background: getStatusBadgeColor(room.status) + '20',
+                          color: getStatusBadgeColor(room.status),
+                        }}>
+                          {room.status}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{ color: '#4caf50', fontSize: '20px' }}>→</span>
+                  </div>
+                  <div style={{ color: '#666', fontSize: '12px' }}>
+                    创建于 {new Date(room.createdAt).toLocaleString('zh-CN')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'bank' && (
+        <ProblemBankPage />
+      )}
 
       <CreateRoomModal
         isOpen={isCreateModalOpen}
@@ -198,6 +245,7 @@ const App: React.FC = () => {
   return (
     <Routes>
       <Route path="/" element={<InterviewerHomePage />} />
+      <Route path="/problem-bank" element={<InterviewerHomePage />} />
       <Route path="/join" element={<JoinRoomPage />} />
       <Route path="/room/:roomId/interviewer" element={<InterviewerRoomPage />} />
       <Route path="/room/:roomId/candidate" element={<CandidateRoomView />} />

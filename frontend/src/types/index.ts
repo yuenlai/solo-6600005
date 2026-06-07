@@ -4,7 +4,42 @@ export interface Problem {
   examples: { input: string; output: string; explanation?: string }[];
   testCases: { input: string; expectedOutput: string; hidden: boolean }[];
   tags: string[]; timeLimit: number; memoryLimit: number;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
 }
+
+export interface CreateProblemRequest {
+  title: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  description: string;
+  examples: { input: string; output: string; explanation?: string }[];
+  testCases: { input: string; expectedOutput: string; hidden: boolean }[];
+  tags: string[];
+  timeLimit: number;
+  memoryLimit: number;
+}
+
+export interface UpdateProblemRequest extends Partial<CreateProblemRequest> {
+  id: string;
+}
+
+export interface DifficultyTag {
+  value: 'easy' | 'medium' | 'hard';
+  label: string;
+  color: string;
+  bgColor: string;
+}
+
+export const DIFFICULTY_TAGS: DifficultyTag[] = [
+  { value: 'easy', label: '简单', color: '#4caf50', bgColor: 'rgba(76, 175, 80, 0.15)' },
+  { value: 'medium', label: '中等', color: '#ff9800', bgColor: 'rgba(255, 152, 0, 0.15)' },
+  { value: 'hard', label: '困难', color: '#f44336', bgColor: 'rgba(244, 67, 54, 0.15)' },
+];
+
+export const getDifficultyTag = (difficulty: string): DifficultyTag => {
+  return DIFFICULTY_TAGS.find(t => t.value === difficulty) || DIFFICULTY_TAGS[0];
+};
 
 export interface Submission {
   id: string; problemId: string; language: string; code: string;
