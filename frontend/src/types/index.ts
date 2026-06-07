@@ -14,10 +14,50 @@ export interface Submission {
   submittedAt: string;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'INTERVIEWER' | 'CANDIDATE';
+  createdAt: string;
+}
+
+export interface CandidateInvitation {
+  id: string;
+  roomId: string;
+  candidateName: string;
+  candidateEmail: string;
+  inviteToken: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'JOINED' | 'LEFT';
+  joinedAt?: string;
+  createdAt: string;
+}
+
+export interface ParticipantStatus {
+  id: string;
+  roomId: string;
+  userId: string;
+  userName: string;
+  userRole: 'INTERVIEWER' | 'CANDIDATE';
+  isOnline: boolean;
+  lastHeartbeat: string;
+  joinedAt: string;
+}
+
 export interface InterviewRoom {
-  id: string; problemId: string; interviewerId: string; candidateId: string;
-  status: 'waiting' | 'active' | 'completed'; startedAt?: string;
-  code: string; language: string; chatMessages: ChatMessage[];
+  id: string;
+  roomCode: string;
+  title: string;
+  problemId: string;
+  interviewerId: string;
+  candidateId: string;
+  status: 'WAITING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  createdAt: string;
+  endedAt?: string;
+  startedAt?: string;
+  code: string;
+  language: string;
+  chatMessages: ChatMessage[];
 }
 
 export interface ChatMessage {
@@ -28,4 +68,17 @@ export interface ChatMessage {
 export interface ScoreCard {
   problemSolving: number; codeQuality: number;
   communication: number; overall: number; notes: string;
+}
+
+export interface CreateRoomRequest {
+  title: string;
+  problemId: string;
+  interviewerId: string;
+  interviewerName: string;
+}
+
+export interface InviteCandidateRequest {
+  roomId: string;
+  candidateName: string;
+  candidateEmail: string;
 }
