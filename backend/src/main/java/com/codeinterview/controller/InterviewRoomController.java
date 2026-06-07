@@ -1,5 +1,6 @@
 package com.codeinterview.controller;
 
+import com.codeinterview.dto.WebSocketMessage;
 import com.codeinterview.model.CandidateInvitation;
 import com.codeinterview.model.InterviewRoom;
 import com.codeinterview.model.ParticipantStatus;
@@ -7,6 +8,7 @@ import com.codeinterview.repository.CandidateInvitationRepository;
 import com.codeinterview.repository.InterviewRoomRepository;
 import com.codeinterview.repository.ParticipantStatusRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,9 @@ public class InterviewRoomController {
 
     @Autowired
     private ParticipantStatusRepository participantStatusRepository;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     private static final String ROOM_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final int ROOM_CODE_LENGTH = 6;
@@ -145,6 +150,10 @@ public class InterviewRoomController {
         candidateStatus.setJoinedAt(LocalDateTime.now());
         ParticipantStatus savedStatus = participantStatusRepository.save(candidateStatus);
 
+        List<ParticipantStatus> participants = participantStatusRepository.findByRoomId(roomId);
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/participants",
+                new WebSocketMessage<>("PARTICIPANTS_UPDATE", participants));
+
         return new ResponseEntity<>(savedStatus, HttpStatus.OK);
     }
 
@@ -161,6 +170,10 @@ public class InterviewRoomController {
         ParticipantStatus status = statusOpt.get();
         status.setOnline(false);
         participantStatusRepository.save(status);
+
+        List<ParticipantStatus> participants = participantStatusRepository.findByRoomId(roomId);
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/participants",
+                new WebSocketMessage<>("PARTICIPANTS_UPDATE", participants));
 
         return new ResponseEntity<>(HttpStatus.OK);
     }
@@ -179,6 +192,10 @@ public class InterviewRoomController {
         status.setOnline(true);
         status.setLastHeartbeat(LocalDateTime.now());
         ParticipantStatus updatedStatus = participantStatusRepository.save(status);
+
+        List<ParticipantStatus> participants = participantStatusRepository.findByRoomId(roomId);
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/participants",
+                new WebSocketMessage<>("PARTICIPANTS_UPDATE", participants));
 
         return new ResponseEntity<>(updatedStatus, HttpStatus.OK);
     }

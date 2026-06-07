@@ -1,0 +1,260 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { CodeEditor } from './CodeEditor';
+import { ProblemPanel } from './ProblemPanel';
+import { CreateRoomModal } from './CreateRoomModal';
+import { InvitePanel } from './InvitePanel';
+import ParticipantList from './ParticipantList';
+import { useInterviewStore } from '../store/interview';
+import { Problem } from '../types';
+import { getRoomById, updateRoomStatus } from '../services/interviewRoomService';
+
+const mockProblem: Problem = {
+  id: 'p1', title: 'Two Sum', difficulty: 'easy',
+  description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+  examples: [{ input: 'nums = [2,7,11,15], target = 9', output: '[0,1]', explanation: 'nums[0] + nums[1] == 9' }],
+  testCases: [
+    { input: '[2,7,11,15], 9', expectedOutput: '[0,1]', hidden: false },
+    { input: '[3,2,4], 6', expectedOutput: '[1,2]', hidden: false },
+  ],
+  tags: ['Array', 'HashMap'], timeLimit: 2000, memoryLimit: 256
+};
+
+export const InterviewerRoomView: React.FC = () => {
+  const { roomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
+  const { currentRoom, setCurrentRoom } = useInterviewStore();
+  const [showInvitePanel, setShowInvitePanel] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (roomId && (!currentRoom || currentRoom.id !== roomId)) {
+      loadRoom(roomId);
+    } else if (currentRoom) {
+      setLoading(false);
+    }
+  }, [roomId, currentRoom]);
+
+  const loadRoom = async (id: string) => {
+    try {
+      const room = await getRoomById(id);
+      setCurrentRoom(room);
+    } catch (error) {
+      console.error('Failed to load room:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'WAITING': return '#ff9800';
+      case 'ACTIVE': return '#4caf50';
+      case 'COMPLETED': return '#2196f3';
+      case 'CANCELLED': return '#f44336';
+      default: return '#666';
+    }
+  };
+
+  const handleStartInterview = async () => {
+    if (!currentRoom) return;
+    try {
+      const updatedRoom = await updateRoomStatus(currentRoom.id, 'ACTIVE');
+      setCurrentRoom(updatedRoom);
+    } catch (error) {
+      console.error('Failed to start interview:', error);
+    }
+  };
+
+  const handleEndInterview = async () => {
+    if (!currentRoom) return;
+    try {
+      const updatedRoom = await updateRoomStatus(currentRoom.id, 'COMPLETED');
+      setCurrentRoom(updatedRoom);
+    } catch (error) {
+      console.error('Failed to end interview:', error);
+    }
+  };
+
+  const handleBack = () => {
+    navigate('/');
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#0d0d0d',
+      }}>
+        <div style={{ color: '#fff', fontSize: '16px' }}>加载中...</div>
+      </div>
+    );
+  }
+
+  if (!currentRoom) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#0d0d0d',
+        flexDirection: 'column',
+        gap: '16px',
+      }}>
+        <div style={{ color: '#f44336', fontSize: '16px' }}>房间不存在</div>
+        <button
+          onClick={handleBack}
+          style={{
+            padding: '10px 24px',
+            background: '#2196f3',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+          }}>
+          返回首页
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', background: '#0d0d0d' }}>
+      <div style={{
+        width: '56px',
+        background: '#1a1a1a',
+        borderRight: '1px solid #333',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '16px 0',
+        gap: '16px',
+      }}>
+        <button
+          onClick={handleBack}
+          title="返回房间列表"
+          style={{
+            width: '40px', height: '40px',
+            background: 'transparent',
+            border: 'none',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '20px',
+            borderRadius: '8px',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+          ←
+        </button>
+        <button
+          onClick={() => setShowInvitePanel(!showInvitePanel)}
+          title={showInvitePanel ? '隐藏邀请面板' : '显示邀请面板'}
+          style={{
+            width: '40px', height: '40px',
+            background: showInvitePanel ? '#2196f3' : 'transparent',
+            border: 'none',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '18px',
+            borderRadius: '8px',
+          }}
+          onMouseEnter={(e) => !showInvitePanel && (e.currentTarget.style.background = '#333')}
+          onMouseLeave={(e) => !showInvitePanel && (e.currentTarget.style.background = 'transparent')}>
+          👥
+        </button>
+      </div>
+
+      {showInvitePanel && (
+        <InvitePanel roomId={currentRoom.id} roomCode={currentRoom.roomCode} />
+      )}
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          background: '#1e1e1e',
+          borderBottom: '1px solid #333',
+          padding: '12px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <h2 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>{currentRoom.title}</h2>
+            <span style={{
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '11px',
+              fontWeight: 500,
+              background: getStatusBadgeColor(currentRoom.status) + '20',
+              color: getStatusBadgeColor(currentRoom.status),
+            }}>
+              {currentRoom.status}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ color: '#888', fontSize: '13px' }}>
+              房间码: <span style={{ color: '#4caf50', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '1px' }}>{currentRoom.roomCode}</span>
+            </div>
+            {currentRoom.status === 'WAITING' && (
+              <button
+                onClick={handleStartInterview}
+                style={{
+                  padding: '8px 20px',
+                  background: '#4caf50',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}>
+                开始面试
+              </button>
+            )}
+            {currentRoom.status === 'ACTIVE' && (
+              <button
+                onClick={handleEndInterview}
+                style={{
+                  padding: '8px 20px',
+                  background: '#f44336',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}>
+                结束面试
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <ProblemPanel problem={mockProblem} />
+          <CodeEditor />
+        </div>
+      </div>
+
+      <div style={{
+        width: '320px',
+        background: '#1a1a1a',
+        borderLeft: '1px solid #333',
+        padding: '16px',
+        overflowY: 'auto',
+      }}>
+        <ParticipantList roomId={currentRoom.id} />
+      </div>
+
+      <CreateRoomModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => setIsCreateModalOpen(false)}
+      />
+    </div>
+  );
+};
