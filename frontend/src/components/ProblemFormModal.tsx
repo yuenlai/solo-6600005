@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Problem, CreateProblemRequest, UpdateProblemRequest } from '../types';
-import { DIFFICULTY_TAGS, getDifficultyTag } from '../types';
+import { DIFFICULTY_TAGS } from '../types';
 import { createProblem, updateProblem } from '../services/problemService';
 import { useInterviewStore } from '../store/interview';
 
@@ -29,7 +29,7 @@ export const ProblemFormModal: React.FC<ProblemFormModalProps> = ({
   onSuccess,
   editingProblem,
 }) => {
-  const { currentUser, addProblem, updateProblem: updateProblemInStore } = useInterviewStore();
+  const { addProblem, updateProblem: updateProblemInStore } = useInterviewStore();
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
   const [description, setDescription] = useState('');
