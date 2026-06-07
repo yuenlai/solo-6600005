@@ -8,6 +8,8 @@ import { useInterviewStore } from './store/interview';
 import { InterviewRoom, User } from './types';
 import { CreateRoomModal } from './components/CreateRoomModal';
 import { getRoomsByInterviewer } from './services/interviewRoomService';
+import { ToastContainer } from './components/Toast';
+import { useToastStore } from './store/toast';
 
 const mockInterviewer: User = {
   id: 'interviewer-001',
@@ -242,15 +244,19 @@ const InterviewerRoomPage: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const { toasts, removeToast } = useToastStore();
   return (
-    <Routes>
-      <Route path="/" element={<InterviewerHomePage />} />
-      <Route path="/problem-bank" element={<InterviewerHomePage />} />
-      <Route path="/join" element={<JoinRoomPage />} />
-      <Route path="/room/:roomId/interviewer" element={<InterviewerRoomPage />} />
-      <Route path="/room/:roomId/candidate" element={<CandidateRoomView />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<InterviewerHomePage />} />
+        <Route path="/problem-bank" element={<InterviewerHomePage />} />
+        <Route path="/join" element={<JoinRoomPage />} />
+        <Route path="/room/:roomId/interviewer" element={<InterviewerRoomPage />} />
+        <Route path="/room/:roomId/candidate" element={<CandidateRoomView />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </>
   );
 };
 

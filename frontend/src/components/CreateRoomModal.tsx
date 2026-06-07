@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createRoom } from '../services/interviewRoomService';
-import { getProblems, parseProblemListResponse } from '../services/problemService';
+import { getProblems } from '../services/problemService';
 import type { InterviewRoom, CreateRoomRequest, CreateRoomResponse, User, Problem } from '../types';
 import { DIFFICULTY_TAGS, getDifficultyTag } from '../types';
 import { useInterviewStore } from '../store/interview';
+import { useToastStore } from '../store/toast';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface CreateRoomModalProps {
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { currentUser, setMyRooms, myRooms, setCurrentUser, problems, setProblems } = useInterviewStore();
+  const { error: showError, info, success } = useToastStore();
   const [title, setTitle] = useState('');
   const [problemId, setProblemId] = useState('');
   const [interviewerName, setInterviewerName] = useState('');
@@ -39,10 +41,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     setProblemsLoading(true);
     try {
       const data = await getProblems();
-      const parsed = parseProblemListResponse(data);
-      setProblems(parsed);
-    } catch (error) {
-      console.error('Failed to load problems:', error);
+      setProblems(data);
+      info(`已加载 ${data.length} 道题目供选择`);
+    } catch (err) {
+      console.error('Failed to load problems:', err);
+      showError('加载题目列表失败，请稍后重试');
     } finally {
       setProblemsLoading(false);
     }
@@ -73,7 +76,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
       const requestData: CreateRoomRequest = {
         title,
         problemId,
-        interviewerId: currentUser?.id || 'interviewer-' + Date.now(),
+        interviewerId: currentUser?.id || 'interviewer-001',
         interviewerName,
       };
       const result: CreateRoomResponse = await createRoom(requestData);
@@ -86,6 +89,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
       };
       setCurrentUser(user);
       setMyRooms([result.room, ...myRooms]);
+      success(`面试房间「${title}」创建成功！房间码：${result.room.roomCode}`);
       onSuccess(result.room);
       onClose();
       setTitle('');
@@ -95,7 +99,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
       setProblemSearch('');
       setSelectedProblem(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建房间失败');
+      const errorMessage = err instanceof Error ? err.message : '创建房间失败';
+      setError(errorMessage);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }

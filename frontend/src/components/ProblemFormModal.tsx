@@ -3,6 +3,7 @@ import type { Problem, CreateProblemRequest, UpdateProblemRequest } from '../typ
 import { DIFFICULTY_TAGS } from '../types';
 import { createProblem, updateProblem } from '../services/problemService';
 import { useInterviewStore } from '../store/interview';
+import { useToastStore } from '../store/toast';
 
 interface ProblemFormModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const ProblemFormModal: React.FC<ProblemFormModalProps> = ({
   editingProblem,
 }) => {
   const { addProblem, updateProblem: updateProblemInStore } = useInterviewStore();
+  const { error: showError } = useToastStore();
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
   const [description, setDescription] = useState('');
@@ -150,7 +152,9 @@ export const ProblemFormModal: React.FC<ProblemFormModalProps> = ({
       onSuccess(result);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存题目失败');
+      const errorMessage = err instanceof Error ? err.message : '保存题目失败';
+      setError(errorMessage);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }

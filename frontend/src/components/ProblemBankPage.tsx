@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useInterviewStore } from '../store/interview';
-import { getProblems, parseProblemListResponse, deleteProblem } from '../services/problemService';
+import { useToastStore } from '../store/toast';
+import { getProblems, deleteProblem, isUsingMockData } from '../services/problemService';
+import { resetMockData } from '../services/mockProblemService';
 import { getDifficultyTag, DIFFICULTY_TAGS, type Problem } from '../types';
 import { ProblemFormModal } from './ProblemFormModal';
 
 export const ProblemBankPage: React.FC = () => {
   const { problems, setProblems, removeProblem } = useInterviewStore();
+  const { success, error, info, warning } = useToastStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProblem, setEditingProblem] = useState<Problem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -13,6 +16,7 @@ export const ProblemBankPage: React.FC = () => {
   const [selectedTag, setSelectedTag] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [mockMode, setMockMode] = useState(false);
 
   useEffect(() => {
     loadProblems();
@@ -29,10 +33,16 @@ export const ProblemBankPage: React.FC = () => {
         params.tag = selectedTag;
       }
       const data = await getProblems(params);
-      const parsedProblems = parseProblemListResponse(data);
-      setProblems(parsedProblems);
-    } catch (error) {
-      console.error('Failed to load problems:', error);
+      setProblems(data);
+      const usingMock = isUsingMockData();
+      setMockMode(usingMock);
+      if (usingMock && !mockMode) {
+        warning('后端服务不可用，当前使用本地 Mock 数据。您的操作将保存在浏览器本地存储中。');
+      }
+      info(`已加载 ${data.length} 道题目`);
+    } catch (err) {
+      console.error('Failed to load problems:', err);
+      error('加载题目列表失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -58,13 +68,19 @@ export const ProblemBankPage: React.FC = () => {
       await deleteProblem(deleteConfirmId);
       removeProblem(deleteConfirmId);
       setDeleteConfirmId(null);
-    } catch (error) {
-      console.error('Failed to delete problem:', error);
+      success('题目删除成功');
+    } catch (err) {
+      console.error('Failed to delete problem:', err);
+      error('删除题目失败，请稍后重试');
     }
   };
 
   const handleSuccess = (problem: Problem) => {
-    console.log('Problem saved:', problem);
+    if (editingProblem) {
+      success(`题目「${problem.title}」更新成功`);
+    } else {
+      success(`题目「${problem.title}」创建成功`);
+    }
     loadProblems();
   };
 
@@ -92,7 +108,7 @@ export const ProblemBankPage: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
-        <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <h1 style={{ color: '#fff', fontSize: '28px', margin: '0 0 8px 0' }}>题库管理</h1>
             <p style={{ color: '#888', margin: 0 }}>管理所有面试编程题目，支持按难度和标签筛选</p>
@@ -112,6 +128,48 @@ export const ProblemBankPage: React.FC = () => {
             + 新增题目
           </button>
         </div>
+
+        {mockMode && (
+          <div style={{
+            marginBottom: '24px',
+            padding: '14px 20px',
+            background: 'linear-gradient(135deg, rgba(255, 152, 0, 0.15), rgba(255, 193, 7, 0.1))',
+            border: '1px solid rgba(255, 152, 0, 0.3)',
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <div>
+                <span style={{ color: '#ff9800', fontWeight: 500 }}>Mock 数据模式</span>
+                <p style={{ color: '#888', margin: '4px 0 0 0', fontSize: '13px' }}>
+                  后端服务不可用，当前数据保存在浏览器本地存储中
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  resetMockData();
+                  loadProblems();
+                  success('已重置为初始 Mock 数据');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: 'rgba(255, 152, 0, 0.2)',
+                  color: '#ff9800',
+                  border: '1px solid rgba(255, 152, 0, 0.4)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                }}>
+                🔄 重置数据
+              </button>
+            </div>
+          </div>
+        )}
 
         <div style={{
           background: '#1e1e1e',
