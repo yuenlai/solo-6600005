@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createRoom } from '../services/interviewRoomService';
-import type { InterviewRoom, CreateRoomRequest } from '../types';
+import type { InterviewRoom, CreateRoomRequest, CreateRoomResponse, User } from '../types';
 import { useInterviewStore } from '../store/interview';
 
 const MOCK_PROBLEMS = [
@@ -17,7 +17,7 @@ interface CreateRoomModalProps {
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { currentUser, setMyRooms, myRooms } = useInterviewStore();
+  const { currentUser, setMyRooms, myRooms, setCurrentUser } = useInterviewStore();
   const [title, setTitle] = useState('');
   const [problemId, setProblemId] = useState('');
   const [interviewerName, setInterviewerName] = useState('');
@@ -39,9 +39,17 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
         interviewerId: currentUser?.id || 'interviewer-' + Date.now(),
         interviewerName,
       };
-      const room = await createRoom(requestData);
-      setMyRooms([room, ...myRooms]);
-      onSuccess(room);
+      const result: CreateRoomResponse = await createRoom(requestData);
+      const user: User = {
+        id: result.participant.userId,
+        name: result.participant.userName,
+        email: '',
+        role: result.participant.userRole,
+        createdAt: new Date().toISOString(),
+      };
+      setCurrentUser(user);
+      setMyRooms([result.room, ...myRooms]);
+      onSuccess(result.room);
       onClose();
       setTitle('');
       setProblemId('');

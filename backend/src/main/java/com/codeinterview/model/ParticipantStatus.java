@@ -16,6 +16,9 @@ public class ParticipantStatus {
     private LocalDateTime lastHeartbeat;
     private LocalDateTime joinedAt;
 
+    @Transient
+    private transient String unifiedUserId;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getRoomId() { return roomId; }
@@ -32,4 +35,12 @@ public class ParticipantStatus {
     public void setLastHeartbeat(LocalDateTime lastHeartbeat) { this.lastHeartbeat = lastHeartbeat; }
     public LocalDateTime getJoinedAt() { return joinedAt; }
     public void setJoinedAt(LocalDateTime joinedAt) { this.joinedAt = joinedAt; }
+
+    public String getUnifiedUserId() {
+        return this.id;
+    }
+
+    public void setUnifiedUserId(String unifiedUserId) {
+        this.unifiedUserId = unifiedUserId;
+    }
 }

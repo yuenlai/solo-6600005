@@ -82,3 +82,14 @@ export interface InviteCandidateRequest {
   candidateName: string;
   candidateEmail: string;
 }
+
+export interface CreateRoomResponse {
+  room: InterviewRoom;
+  participant: ParticipantStatus;
+}
+
+export interface JoinRoomResponse {
+  participant: ParticipantStatus;
+  room: InterviewRoom;
+  message?: string;
+}

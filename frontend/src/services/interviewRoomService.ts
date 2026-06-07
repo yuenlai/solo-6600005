@@ -1,8 +1,8 @@
 import { request } from './api';
-import type { CreateRoomRequest, InterviewRoom, ParticipantStatus } from '../types';
+import type { CreateRoomRequest, InterviewRoom, ParticipantStatus, JoinRoomResponse, CreateRoomResponse } from '../types';
 
-export function createRoom(data: CreateRoomRequest): Promise<InterviewRoom> {
-  return request<InterviewRoom>('/interview-rooms', {
+export function createRoom(data: CreateRoomRequest): Promise<CreateRoomResponse> {
+  return request<CreateRoomResponse>('/interview-rooms', {
     method: 'POST',
     body: data,
   });
@@ -31,8 +31,8 @@ export function getRoomParticipants(roomId: string): Promise<ParticipantStatus[]
   return request<ParticipantStatus[]>(`/interview-rooms/${roomId}/participants`);
 }
 
-export function joinRoom(roomId: string, data: { candidateName: string; inviteToken: string }): Promise<ParticipantStatus> {
-  return request<ParticipantStatus>(`/interview-rooms/${roomId}/join`, {
+export function joinRoom(roomId: string, data: { candidateName: string; inviteToken: string }): Promise<JoinRoomResponse> {
+  return request<JoinRoomResponse>(`/interview-rooms/${roomId}/join`, {
     method: 'POST',
     body: data,
   });

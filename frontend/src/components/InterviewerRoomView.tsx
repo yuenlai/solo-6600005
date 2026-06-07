@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CodeEditor } from './CodeEditor';
 import { ProblemPanel } from './ProblemPanel';
@@ -6,8 +6,9 @@ import { CreateRoomModal } from './CreateRoomModal';
 import { InvitePanel } from './InvitePanel';
 import ParticipantList from './ParticipantList';
 import { useInterviewStore } from '../store/interview';
-import { Problem } from '../types';
-import { getRoomById, updateRoomStatus } from '../services/interviewRoomService';
+import { Problem, ParticipantStatus } from '../types';
+import { getRoomById, updateRoomStatus, getRoomParticipants, heartbeat } from '../services/interviewRoomService';
+import { connect, disconnect, subscribeParticipants, subscribeRoomStatus, sendHeartbeat } from '../services/websocketService';
 
 const mockProblem: Problem = {
   id: 'p1', title: 'Two Sum', difficulty: 'easy',
@@ -23,29 +24,110 @@ const mockProblem: Problem = {
 export const InterviewerRoomView: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { currentRoom, setCurrentRoom } = useInterviewStore();
+  const {
+    currentRoom,
+    currentUser,
+    setCurrentRoom,
+    setParticipants,
+    updateParticipant,
+    setIsConnected,
+    resetRoom,
+  } = useInterviewStore();
   const [showInvitePanel, setShowInvitePanel] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const httpHeartbeatRef = useRef<number | null>(null);
+  const wsHeartbeatRef = useRef<number | null>(null);
+  const unsubscribeParticipantsRef = useRef<(() => void) | null>(null);
+  const unsubscribeRoomStatusRef = useRef<(() => void) | null>(null);
+
+  const fetchRoomDetails = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const data = await getRoomById(roomId);
+      setCurrentRoom(data);
+    } catch (error) {
+      console.error('Failed to fetch room details:', error);
+    }
+  }, [roomId, setCurrentRoom]);
+
+  const fetchParticipants = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const data = await getRoomParticipants(roomId);
+      setParticipants(data);
+    } catch (error) {
+      console.error('Failed to fetch participants:', error);
+    }
+  }, [roomId, setParticipants]);
+
+  const sendHttpHeartbeat = useCallback(async () => {
+    if (!roomId || !currentUser) return;
+    try {
+      const participant = await heartbeat(roomId, currentUser.id);
+      updateParticipant(participant);
+    } catch (error) {
+      console.error('Failed to send heartbeat:', error);
+    }
+  }, [roomId, currentUser, updateParticipant]);
 
   useEffect(() => {
-    if (roomId && (!currentRoom || currentRoom.id !== roomId)) {
-      loadRoom(roomId);
-    } else if (currentRoom) {
-      setLoading(false);
-    }
-  }, [roomId, currentRoom]);
+    let mounted = true;
 
-  const loadRoom = async (id: string) => {
-    try {
-      const room = await getRoomById(id);
-      setCurrentRoom(room);
-    } catch (error) {
-      console.error('Failed to load room:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const init = async () => {
+      setLoading(true);
+      try {
+        if (!currentRoom && roomId) {
+          await fetchRoomDetails();
+        }
+        await fetchParticipants();
+
+        if (currentUser && roomId) {
+          try {
+            await connect(roomId, currentUser);
+            setIsConnected(true);
+
+            unsubscribeParticipantsRef.current = subscribeParticipants(roomId, (data) => {
+              if (mounted) {
+                setParticipants(data as ParticipantStatus[]);
+              }
+            });
+
+            unsubscribeRoomStatusRef.current = subscribeRoomStatus(roomId, (room) => {
+              if (mounted) {
+                setCurrentRoom(room);
+              }
+            });
+
+            httpHeartbeatRef.current = window.setInterval(sendHttpHeartbeat, 30000);
+            wsHeartbeatRef.current = window.setInterval(() => {
+              if (currentUser) sendHeartbeat(roomId, currentUser);
+            }, 30000);
+          } catch (error) {
+            console.error('Failed to connect WebSocket:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize room:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    init();
+
+    return () => {
+      mounted = false;
+      if (httpHeartbeatRef.current) clearInterval(httpHeartbeatRef.current);
+      if (wsHeartbeatRef.current) clearInterval(wsHeartbeatRef.current);
+      if (unsubscribeParticipantsRef.current) unsubscribeParticipantsRef.current();
+      if (unsubscribeRoomStatusRef.current) unsubscribeRoomStatusRef.current();
+      disconnect();
+      setIsConnected(false);
+    };
+  }, [roomId, currentUser, currentRoom, fetchRoomDetails, fetchParticipants, sendHttpHeartbeat, setIsConnected, setCurrentRoom, setParticipants]);
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -78,6 +160,7 @@ export const InterviewerRoomView: React.FC = () => {
   };
 
   const handleBack = () => {
+    resetRoom();
     navigate('/');
   };
 

@@ -93,13 +93,13 @@ export const JoinRoomPage: React.FC = () => {
     setLoading(true);
     try {
       const inviteToken = tokenFromUrl || '';
-      await joinRoom(roomInfo.id, {
+      const result = await joinRoom(roomInfo.id, {
         candidateName: candidateName.trim(),
         inviteToken,
       });
 
       const user: User = {
-        id: 'candidate-' + Date.now(),
+        id: result.participant.userId,
         name: candidateName.trim(),
         email: candidateEmail.trim(),
         role: 'CANDIDATE',
@@ -107,8 +107,8 @@ export const JoinRoomPage: React.FC = () => {
       };
 
       setCurrentUser(user);
-      setCurrentRoom(roomInfo);
-      navigate(`/room/${roomInfo.id}/candidate`);
+      setCurrentRoom(result.room);
+      navigate(`/room/${result.room.id}/candidate`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加入房间失败');
     } finally {

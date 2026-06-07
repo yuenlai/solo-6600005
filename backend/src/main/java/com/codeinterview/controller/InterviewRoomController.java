@@ -1,5 +1,7 @@
 package com.codeinterview.controller;
 
+import com.codeinterview.dto.CreateRoomResponse;
+import com.codeinterview.dto.JoinRoomResponse;
 import com.codeinterview.dto.WebSocketMessage;
 import com.codeinterview.model.CandidateInvitation;
 import com.codeinterview.model.InterviewRoom;
@@ -42,7 +44,7 @@ public class InterviewRoomController {
 
     @PostMapping
     @Transactional
-    public ResponseEntity<InterviewRoom> createInterviewRoom(@RequestBody Map<String, String> request) {
+    public ResponseEntity<CreateRoomResponse> createInterviewRoom(@RequestBody Map<String, String> request) {
         String title = request.get("title");
         String problemId = request.get("problemId");
         String interviewerId = request.get("interviewerId");
@@ -66,9 +68,9 @@ public class InterviewRoomController {
         interviewerStatus.setOnline(true);
         interviewerStatus.setLastHeartbeat(LocalDateTime.now());
         interviewerStatus.setJoinedAt(LocalDateTime.now());
-        participantStatusRepository.save(interviewerStatus);
+        ParticipantStatus savedInterviewerStatus = participantStatusRepository.save(interviewerStatus);
 
-        return new ResponseEntity<>(savedRoom, HttpStatus.CREATED);
+        return new ResponseEntity<>(new CreateRoomResponse(savedRoom, savedInterviewerStatus), HttpStatus.CREATED);
     }
 
     @GetMapping("/{roomId}")
@@ -122,27 +124,37 @@ public class InterviewRoomController {
 
     @PostMapping("/{roomId}/join")
     @Transactional
-    public ResponseEntity<ParticipantStatus> joinRoom(@PathVariable String roomId, @RequestBody Map<String, String> request) {
+    public ResponseEntity<JoinRoomResponse> joinRoom(@PathVariable String roomId, @RequestBody Map<String, String> request) {
         String candidateName = request.get("candidateName");
         String inviteToken = request.get("inviteToken");
 
-        Optional<CandidateInvitation> invitationOpt = candidateInvitationRepository.findByInviteToken(inviteToken);
-        if (invitationOpt.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        Optional<InterviewRoom> roomOpt = interviewRoomRepository.findById(roomId);
+        if (roomOpt.isEmpty()) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+        InterviewRoom room = roomOpt.get();
 
-        CandidateInvitation invitation = invitationOpt.get();
-        if (!invitation.getRoomId().equals(roomId)) {
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        String message = "Joined via room code";
+
+        if (inviteToken != null && !inviteToken.trim().isEmpty()) {
+            Optional<CandidateInvitation> invitationOpt = candidateInvitationRepository.findByInviteToken(inviteToken);
+            if (invitationOpt.isEmpty()) {
+                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+            }
+
+            CandidateInvitation invitation = invitationOpt.get();
+            if (!invitation.getRoomId().equals(roomId)) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+
+            invitation.setStatus("JOINED");
+            invitation.setJoinedAt(LocalDateTime.now());
+            candidateInvitationRepository.save(invitation);
+            message = "Joined via invitation token";
         }
-
-        invitation.setStatus("JOINED");
-        invitation.setJoinedAt(LocalDateTime.now());
-        candidateInvitationRepository.save(invitation);
 
         ParticipantStatus candidateStatus = new ParticipantStatus();
         candidateStatus.setRoomId(roomId);
-        candidateStatus.setUserId(invitation.getId());
         candidateStatus.setUserName(candidateName);
         candidateStatus.setUserRole("CANDIDATE");
         candidateStatus.setOnline(true);
@@ -150,11 +162,15 @@ public class InterviewRoomController {
         candidateStatus.setJoinedAt(LocalDateTime.now());
         ParticipantStatus savedStatus = participantStatusRepository.save(candidateStatus);
 
+        savedStatus.setUserId(savedStatus.getId());
+        participantStatusRepository.save(savedStatus);
+
         List<ParticipantStatus> participants = participantStatusRepository.findByRoomId(roomId);
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/participants",
                 new WebSocketMessage<>("PARTICIPANTS_UPDATE", participants));
 
-        return new ResponseEntity<>(savedStatus, HttpStatus.OK);
+        JoinRoomResponse response = new JoinRoomResponse(savedStatus, room, message);
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @PostMapping("/{roomId}/leave")

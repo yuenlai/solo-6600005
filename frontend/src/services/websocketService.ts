@@ -4,7 +4,7 @@ import type { User, InterviewRoom, ParticipantStatus } from '../types';
 
 let stompClient: Client | null = null;
 
-export function connect(_roomId: string, _user: User): Promise<void> {
+export function connect(roomId: string, user: User): Promise<void> {
   return new Promise((resolve, reject) => {
     const socket = new SockJS('http://localhost:8080/ws/interview');
     stompClient = new Client({
@@ -12,6 +12,12 @@ export function connect(_roomId: string, _user: User): Promise<void> {
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
+      connectHeaders: {
+        roomId,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+      },
     });
 
     stompClient.onConnect = () => {
@@ -86,16 +92,19 @@ export function sendHeartbeat(roomId: string, user: User): void {
     return;
   }
 
+  const headers = {
+    roomId,
+    userId: user.id,
+    userName: user.name,
+    userRole: user.role,
+  };
+
   stompClient.publish({
     destination: `/app/heartbeat`,
+    headers,
     body: JSON.stringify({
       type: 'HEARTBEAT',
-      payload: {
-        roomId,
-        userId: user.id,
-        userName: user.name,
-        userRole: user.role,
-      },
+      payload: headers,
     }),
   });
 }

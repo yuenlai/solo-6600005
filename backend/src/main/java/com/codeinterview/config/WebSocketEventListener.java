@@ -25,59 +25,82 @@ public class WebSocketEventListener {
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectEvent event) {
-        SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(event.getMessage());
-        Map<String, Object> attributes = headers.getSessionAttributes();
+        SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.wrap(event.getMessage());
+        Map<String, Object> attributes = headerAccessor.getSessionAttributes();
 
-        if (attributes != null) {
-            String roomId = (String) attributes.get("roomId");
-            String userId = (String) attributes.get("userId");
-            String userName = (String) attributes.get("userName");
-            String userRole = (String) attributes.get("userRole");
+        String roomId = headerAccessor.getFirstNativeHeader("roomId");
+        String userId = headerAccessor.getFirstNativeHeader("userId");
+        String userName = headerAccessor.getFirstNativeHeader("userName");
+        String userRole = headerAccessor.getFirstNativeHeader("userRole");
 
-            logger.info("WebSocket connected - roomId: {}, userId: {}, userName: {}, userRole: {}",
-                    roomId, userId, userName, userRole);
+        if (roomId == null && attributes != null) {
+            roomId = (String) attributes.get("roomId");
+        }
+        if (userId == null && attributes != null) {
+            userId = (String) attributes.get("userId");
+        }
+        if (userName == null && attributes != null) {
+            userName = (String) attributes.get("userName");
+        }
+        if (userRole == null && attributes != null) {
+            userRole = (String) attributes.get("userRole");
+        }
 
-            if (roomId != null && userId != null) {
-                Optional<ParticipantStatus> existing = participantStatusRepository.findByRoomIdAndUserId(roomId, userId);
-                ParticipantStatus status;
-                if (existing.isPresent()) {
-                    status = existing.get();
-                    status.setOnline(true);
-                    status.setLastHeartbeat(LocalDateTime.now());
-                } else {
-                    status = new ParticipantStatus();
-                    status.setRoomId(roomId);
-                    status.setUserId(userId);
-                    status.setUserName(userName);
-                    status.setUserRole(userRole);
-                    status.setOnline(true);
-                    status.setJoinedAt(LocalDateTime.now());
-                    status.setLastHeartbeat(LocalDateTime.now());
-                }
-                participantStatusRepository.save(status);
+        logger.info("WebSocket connected - roomId: {}, userId: {}, userName: {}, userRole: {}",
+                roomId, userId, userName, userRole);
+
+        if (roomId != null && userId != null) {
+            if (attributes != null) {
+                attributes.put("roomId", roomId);
+                attributes.put("userId", userId);
+                attributes.put("userName", userName);
+                attributes.put("userRole", userRole);
             }
+
+            Optional<ParticipantStatus> existing = participantStatusRepository.findByRoomIdAndUserId(roomId, userId);
+            ParticipantStatus status;
+            if (existing.isPresent()) {
+                status = existing.get();
+                status.setOnline(true);
+                status.setLastHeartbeat(LocalDateTime.now());
+            } else {
+                status = new ParticipantStatus();
+                status.setRoomId(roomId);
+                status.setUserId(userId);
+                status.setUserName(userName);
+                status.setUserRole(userRole);
+                status.setOnline(true);
+                status.setJoinedAt(LocalDateTime.now());
+                status.setLastHeartbeat(LocalDateTime.now());
+            }
+            participantStatusRepository.save(status);
         }
     }
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
-        SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(event.getMessage());
-        Map<String, Object> attributes = headers.getSessionAttributes();
+        SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.wrap(event.getMessage());
+        Map<String, Object> attributes = headerAccessor.getSessionAttributes();
 
-        if (attributes != null) {
-            String roomId = (String) attributes.get("roomId");
-            String userId = (String) attributes.get("userId");
+        String roomId = headerAccessor.getFirstNativeHeader("roomId");
+        String userId = headerAccessor.getFirstNativeHeader("userId");
 
-            logger.info("WebSocket disconnected - roomId: {}, userId: {}", roomId, userId);
+        if (roomId == null && attributes != null) {
+            roomId = (String) attributes.get("roomId");
+        }
+        if (userId == null && attributes != null) {
+            userId = (String) attributes.get("userId");
+        }
 
-            if (roomId != null && userId != null) {
-                Optional<ParticipantStatus> existing = participantStatusRepository.findByRoomIdAndUserId(roomId, userId);
-                if (existing.isPresent()) {
-                    ParticipantStatus status = existing.get();
-                    status.setOnline(false);
-                    status.setLastHeartbeat(LocalDateTime.now());
-                    participantStatusRepository.save(status);
-                }
+        logger.info("WebSocket disconnected - roomId: {}, userId: {}", roomId, userId);
+
+        if (roomId != null && userId != null) {
+            Optional<ParticipantStatus> existing = participantStatusRepository.findByRoomIdAndUserId(roomId, userId);
+            if (existing.isPresent()) {
+                ParticipantStatus status = existing.get();
+                status.setOnline(false);
+                status.setLastHeartbeat(LocalDateTime.now());
+                participantStatusRepository.save(status);
             }
         }
     }
