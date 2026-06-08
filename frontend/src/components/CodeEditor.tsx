@@ -1,15 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { useInterviewStore, ExecutionResult } from '../store/interview';
 import { SubmissionResult } from './SubmissionResult';
-
-const LANGUAGES = [
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'python', label: 'Python' },
-  { value: 'java', label: 'Java' },
-  { value: 'go', label: 'Go' },
-];
+import { LANGUAGE_CONFIGS, getLanguageConfig, LanguageConfig } from '../types';
 
 interface CodeEditorProps {
   disabled?: boolean;
@@ -43,16 +36,68 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     currentProblem,
     lastRunResult,
     lastSubmissionResult,
+    executionHistory,
   } = useInterviewStore();
 
   const [languageConfirmOpen, setLanguageConfirmOpen] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [codeModified, setCodeModified] = useState(false);
+  const [codeChangeIndicator, setCodeChangeIndicator] = useState(false);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+
+  const langConfig = useMemo(() => getLanguageConfig(language), [language]);
+
+  const codeChangeStats = useMemo(() => {
+    if (!codeModified) return { added: 0, removed: 0, total: 0 };
+    const originalLines = originalCode.split('\n');
+    const currentLines = code.split('\n');
+    const minLen = Math.min(originalLines.length, currentLines.length);
+    let added = 0, removed = 0;
+    for (let i = 0; i < minLen; i++) {
+      if (originalLines[i] !== currentLines[i]) {
+        added++;
+        removed++;
+      }
+    }
+    if (currentLines.length > originalLines.length) {
+      added += currentLines.length - originalLines.length;
+    } else if (originalLines.length > currentLines.length) {
+      removed += originalLines.length - currentLines.length;
+    }
+    return { added, removed, total: added + removed };
+  }, [code, originalCode, codeModified]);
 
   useEffect(() => {
     setCodeModified(code !== originalCode);
+    if (code !== originalCode) {
+      setCodeChangeIndicator(true);
+      const timer = setTimeout(() => setCodeChangeIndicator(false), 300);
+      return () => clearTimeout(timer);
+    }
   }, [code, originalCode]);
+
+  const latestSubmission = useMemo(() => {
+    return executionHistory.find(h => h.type === 'submit') || executionHistory[0];
+  }, [executionHistory]);
+
+  const submissionStatus = useMemo(() => {
+    if (!latestSubmission) return null;
+    const passRate = latestSubmission.totalCount > 0
+      ? (latestSubmission.passedCount / latestSubmission.totalCount) * 100
+      : 0;
+    const isSuccess = latestSubmission.passedCount === latestSubmission.totalCount && latestSubmission.totalCount > 0;
+    return {
+      isSuccess,
+      passRate,
+      passedCount: latestSubmission.passedCount,
+      totalCount: latestSubmission.totalCount,
+      runtime: latestSubmission.runtime,
+      memory: latestSubmission.memory,
+      timestamp: latestSubmission.timestamp,
+      type: latestSubmission.type,
+    };
+  }, [latestSubmission]);
 
   useEffect(() => {
     if (statusMessage) {
@@ -65,7 +110,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     setStatusMessage({ type, text });
   }, []);
 
-  const handleLanguageChange = useCallback((newLang: string) => {
+  const handleLanguageSelect = useCallback((newLang: string) => {
+    setShowLanguageDropdown(false);
     if (newLang === language) return;
 
     if (codeModified && code.trim() !== '') {
@@ -73,7 +119,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       setLanguageConfirmOpen(true);
     } else {
       setLanguage(newLang);
-      showStatus('info', `已切换到 ${LANGUAGES.find(l => l.value === newLang)?.label || newLang}`);
+      showStatus('info', `已切换到 ${LANGUAGE_CONFIGS.find(l => l.value === newLang)?.label || newLang}`);
     }
   }, [language, codeModified, code, setLanguage, showStatus]);
 
@@ -81,11 +127,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     if (pendingLanguage) {
       setLanguage(pendingLanguage);
       resetOriginalCode();
-      showStatus('info', `已切换到 ${LANGUAGES.find(l => l.value === pendingLanguage)?.label || pendingLanguage}`);
+      showStatus('info', `已切换到 ${LANGUAGE_CONFIGS.find(l => l.value === pendingLanguage)?.label || pendingLanguage}`);
     }
     setLanguageConfirmOpen(false);
     setPendingLanguage(null);
   }, [pendingLanguage, setLanguage, resetOriginalCode, showStatus]);
+
+  const getTimeAgo = (dateString: string) => {
+    const diff = Date.now() - new Date(dateString).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return '刚刚';
+    if (mins < 60) return `${mins} 分钟前`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} 小时前`;
+    return `${Math.floor(hours / 24)} 天前`;
+  };
 
   const cancelLanguageChange = useCallback(() => {
     setLanguageConfirmOpen(false);
@@ -260,6 +316,278 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }} />
   );
 
+  const LanguageBadge: React.FC<{ config: LanguageConfig; onClick: () => void; isOpen: boolean }> = ({ config, onClick, isOpen }) => (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '6px 12px 6px 8px',
+        borderRadius: '8px',
+        background: config.bgColor,
+        border: `2px solid ${config.borderColor}`,
+        cursor: disabled || isRunning || isSubmitting ? 'not-allowed' : 'pointer',
+        opacity: disabled || isRunning || isSubmitting ? 0.5 : 1,
+        transition: 'all 0.2s ease',
+        position: 'relative',
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled && !isRunning && !isSubmitting) {
+          e.currentTarget.style.transform = 'translateY(-1px)';
+          e.currentTarget.style.boxShadow = `0 2px 8px ${config.color}40`;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled && !isRunning && !isSubmitting) {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = 'none';
+        }
+      }}
+    >
+      <div style={{
+        width: '26px',
+        height: '26px',
+        borderRadius: '6px',
+        background: config.color,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#1e1e1e',
+        fontSize: '11px',
+        fontWeight: 800,
+        fontFamily: 'monospace',
+      }}>
+        {config.icon}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <span style={{ color: '#fff', fontSize: '13px', fontWeight: 600 }}>{config.label}</span>
+        <span style={{ color: config.color, fontSize: '10px', fontWeight: 500 }}>{config.value.toUpperCase()}</span>
+      </div>
+      <span style={{
+        color: config.color,
+        fontSize: '10px',
+        marginLeft: '4px',
+        transition: 'transform 0.2s',
+        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+      }}>▼</span>
+      {codeModified && (
+        <div style={{
+          position: 'absolute',
+          top: '-4px',
+          right: '-4px',
+          width: '10px',
+          height: '10px',
+          background: '#ff9800',
+          borderRadius: '50%',
+          animation: 'pulse 1.5s ease-in-out infinite',
+          boxShadow: '0 0 8px #ff9800',
+        }} title="代码已修改" />
+      )}
+    </div>
+  );
+
+  const LanguageDropdown: React.FC = () => (
+    <div style={{
+      position: 'absolute',
+      top: '100%',
+      left: '0',
+      marginTop: '6px',
+      background: '#2d2d2d',
+      border: '1px solid #444',
+      borderRadius: '8px',
+      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+      zIndex: 1000,
+      overflow: 'hidden',
+      minWidth: '180px',
+    }}>
+      {LANGUAGE_CONFIGS.map((lang) => (
+        <div
+          key={lang.value}
+          onClick={() => handleLanguageSelect(lang.value)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 14px',
+            cursor: 'pointer',
+            transition: 'background 0.15s',
+            background: language === lang.value ? lang.bgColor : 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            if (language !== lang.value) {
+              e.currentTarget.style.background = lang.bgColor;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (language !== lang.value) {
+              e.currentTarget.style.background = 'transparent';
+            }
+          }}
+        >
+          <div style={{
+            width: '22px',
+            height: '22px',
+            borderRadius: '4px',
+            background: lang.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#1e1e1e',
+            fontSize: '10px',
+            fontWeight: 800,
+            fontFamily: 'monospace',
+          }}>
+            {lang.icon}
+          </div>
+          <span style={{ color: '#fff', fontSize: '13px', fontWeight: 500, flex: 1 }}>{lang.label}</span>
+          {language === lang.value && (
+            <span style={{ color: lang.color, fontSize: '12px', fontWeight: 600 }}>✓</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  const CodeChangeIndicator: React.FC = () => (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '6px 12px',
+      background: codeChangeIndicator ? 'rgba(255, 152, 0, 0.2)' : 'rgba(255, 152, 0, 0.1)',
+      border: codeChangeIndicator ? '1px solid #ff9800' : '1px solid rgba(255, 152, 0, 0.3)',
+      borderRadius: '6px',
+      transition: 'all 0.3s ease',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        animation: codeChangeIndicator ? 'flash 0.3s ease' : 'none',
+      }}>
+        <span style={{ color: '#ff9800', fontSize: '14px' }}>✏️</span>
+        <span style={{ color: '#ff9800', fontSize: '11px', fontWeight: 600 }}>已修改</span>
+      </div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: '10px',
+        fontFamily: 'monospace',
+      }}>
+        {codeChangeStats.added > 0 && (
+          <span style={{ color: '#4caf50', fontWeight: 600 }}>
+            +{codeChangeStats.added}
+          </span>
+        )}
+        {codeChangeStats.removed > 0 && (
+          <span style={{ color: '#f44336', fontWeight: 600 }}>
+            -{codeChangeStats.removed}
+          </span>
+        )}
+        {codeChangeStats.total > 0 && (
+          <span style={{ color: '#888' }}>
+            · {codeChangeStats.total} 处变更
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  const SubmissionStatusBar: React.FC = () => {
+    if (!submissionStatus) {
+      return (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 12px',
+          background: 'rgba(102, 102, 102, 0.1)',
+          border: '1px solid rgba(102, 102, 102, 0.3)',
+          borderRadius: '6px',
+        }}>
+          <span style={{ color: '#666', fontSize: '14px' }}>📊</span>
+          <span style={{ color: '#666', fontSize: '11px', fontWeight: 500 }}>暂无执行记录</span>
+        </div>
+      );
+    }
+
+    const statusColor = submissionStatus.isSuccess ? '#4caf50' : '#ff9800';
+    const statusBg = submissionStatus.isSuccess ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 152, 0, 0.1)';
+    const statusBorder = submissionStatus.isSuccess ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255, 152, 0, 0.3)';
+
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '6px 12px',
+        background: statusBg,
+        border: `1px solid ${statusBorder}`,
+        borderRadius: '6px',
+        transition: 'all 0.3s ease',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}>
+          <span style={{ fontSize: '14px' }}>{submissionStatus.isSuccess ? '✅' : '⏳'}</span>
+          <span style={{
+            color: statusColor,
+            fontSize: '11px',
+            fontWeight: 600,
+          }}>
+            {submissionStatus.type === 'submit' ? '提交' : '运行'}
+            {submissionStatus.isSuccess ? '通过' : '进行中'}
+          </span>
+        </div>
+
+        <div style={{ width: '1px', height: '14px', background: '#444' }} />
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '10px',
+          fontFamily: 'monospace',
+        }}>
+          <span style={{
+            color: submissionStatus.isSuccess ? '#4caf50' : '#ff9800',
+            fontWeight: 700,
+            fontSize: '11px',
+          }}>
+            {submissionStatus.passedCount}/{submissionStatus.totalCount || '-'}
+          </span>
+          <span style={{ color: '#666' }}>用例</span>
+          {submissionStatus.runtime !== undefined && (
+            <>
+              <span style={{ width: '4px', height: '4px', background: '#444', borderRadius: '50%' }} />
+              <span style={{ color: '#2196f3', fontWeight: 600 }}>
+                {submissionStatus.runtime}ms
+              </span>
+            </>
+          )}
+          {submissionStatus.memory !== undefined && (
+            <>
+              <span style={{ width: '4px', height: '4px', background: '#444', borderRadius: '50%' }} />
+              <span style={{ color: '#9c27b0', fontWeight: 600 }}>
+                {submissionStatus.memory}MB
+              </span>
+            </>
+          )}
+        </div>
+
+        <div style={{ width: '1px', height: '14px', background: '#444' }} />
+
+        <span style={{ color: '#666', fontSize: '10px' }}>
+          {getTimeAgo(submissionStatus.timestamp)}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{
@@ -273,61 +601,35 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ position: 'relative' }}>
-            <select
-              value={language}
-              onChange={e => handleLanguageChange(e.target.value)}
-              disabled={disabled || isRunning || isSubmitting}
-              style={{
-                padding: '6px 32px 6px 12px',
-                borderRadius: '6px',
-                border: codeModified ? '1px solid #ff9800' : '1px solid #555',
-                background: '#2d2d2d',
-                color: '#fff',
-                fontSize: '13px',
-                cursor: disabled || isRunning || isSubmitting ? 'not-allowed' : 'pointer',
-                outline: 'none',
-                appearance: 'none',
-                transition: 'border-color 0.2s',
-              }}
-            >
-              {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-            </select>
-            <div style={{
-              position: 'absolute',
-              right: '8px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-              color: '#888',
-              fontSize: '10px',
-            }}>▼</div>
-            {codeModified && (
-              <div style={{
-                position: 'absolute',
-                top: '-4px',
-                right: '-4px',
-                width: '8px',
-                height: '8px',
-                background: '#ff9800',
-                borderRadius: '50%',
-              }} title="代码已修改" />
+            <LanguageBadge
+              config={langConfig}
+              onClick={() => !disabled && !isRunning && !isSubmitting && setShowLanguageDropdown(!showLanguageDropdown)}
+              isOpen={showLanguageDropdown}
+            />
+            {showLanguageDropdown && (
+              <>
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 999,
+                  }}
+                  onClick={() => setShowLanguageDropdown(false)}
+                />
+                <LanguageDropdown />
+              </>
             )}
           </div>
 
-          {codeModified && (
-            <span style={{
-              color: '#ff9800',
-              fontSize: '11px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}>
-              ● 已修改
-            </span>
-          )}
+          {codeModified && <CodeChangeIndicator />}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <SubmissionStatusBar />
+
           {statusMessage && (
             <span style={{
               color: statusMessage.type === 'success' ? '#4caf50' : statusMessage.type === 'error' ? '#f44336' : '#2196f3',
@@ -432,8 +734,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
               ⚠️ 确认切换语言
             </h3>
             <p style={{ margin: '0 0 20px 0', color: '#ccc', fontSize: '13px', lineHeight: 1.6 }}>
-              当前代码已修改，切换到 <strong style={{ color: '#ff9800' }}>
-                {LANGUAGES.find(l => l.value === pendingLanguage)?.label || pendingLanguage}
+              当前代码已修改，切换到 <strong style={{ color: getLanguageConfig(pendingLanguage || '').color }}>
+                {LANGUAGE_CONFIGS.find(l => l.value === pendingLanguage)?.label || pendingLanguage}
               </strong> 将重置代码模板。
               <br /><br />
               是否继续？
@@ -526,6 +828,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.2); }
+        }
+        @keyframes flash {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
       `}</style>
     </div>

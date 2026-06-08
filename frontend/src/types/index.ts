@@ -123,6 +123,27 @@ export interface CreateRoomResponse {
   participant: ParticipantStatus;
 }
 
+export interface LanguageConfig {
+  value: string;
+  label: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+export const LANGUAGE_CONFIGS: LanguageConfig[] = [
+  { value: 'javascript', label: 'JavaScript', icon: 'JS', color: '#f7df1e', bgColor: 'rgba(247, 223, 30, 0.15)', borderColor: '#f7df1e' },
+  { value: 'typescript', label: 'TypeScript', icon: 'TS', color: '#3178c6', bgColor: 'rgba(49, 120, 198, 0.15)', borderColor: '#3178c6' },
+  { value: 'python', label: 'Python', icon: 'PY', color: '#3776ab', bgColor: 'rgba(55, 118, 171, 0.15)', borderColor: '#3776ab' },
+  { value: 'java', label: 'Java', icon: 'JV', color: '#007396', bgColor: 'rgba(0, 115, 150, 0.15)', borderColor: '#007396' },
+  { value: 'go', label: 'Go', icon: 'GO', color: '#00add8', bgColor: 'rgba(0, 173, 216, 0.15)', borderColor: '#00add8' },
+];
+
+export const getLanguageConfig = (value: string): LanguageConfig => {
+  return LANGUAGE_CONFIGS.find(l => l.value === value) || LANGUAGE_CONFIGS[0];
+};
+
 export interface JoinRoomResponse {
   participant: ParticipantStatus;
   room: InterviewRoom;
