@@ -1,13 +1,25 @@
 import { create } from 'zustand';
 import { Problem, Submission, InterviewRoom, User, CandidateInvitation, ParticipantStatus } from '../types';
 
-interface ExecutionResult {
+export interface ExecutionResult {
   success: boolean;
   output?: string;
   error?: string;
   runtime?: number;
   memory?: number;
   testResults?: { passed: boolean; input: string; expected: string; actual?: string }[];
+}
+
+export interface ExecutionHistoryItem {
+  id: string;
+  type: 'run' | 'submit';
+  result: ExecutionResult;
+  timestamp: string;
+  language: string;
+  passedCount: number;
+  totalCount: number;
+  runtime?: number;
+  memory?: number;
 }
 
 interface InterviewState {
@@ -23,6 +35,7 @@ interface InterviewState {
   isSubmitting: boolean;
   lastRunResult: ExecutionResult | null;
   lastSubmissionResult: ExecutionResult | null;
+  executionHistory: ExecutionHistoryItem[];
   currentUser: User | null;
   myRooms: InterviewRoom[];
   currentRoom: InterviewRoom | null;
@@ -36,6 +49,8 @@ interface InterviewState {
   setIsSubmitting: (submitting: boolean) => void;
   setLastRunResult: (result: ExecutionResult | null) => void;
   setLastSubmissionResult: (result: ExecutionResult | null) => void;
+  addExecutionHistory: (item: ExecutionHistoryItem) => void;
+  clearExecutionHistory: () => void;
   resetOriginalCode: () => void;
   addSubmission: (s: Submission) => void;
   setRoom: (room: InterviewRoom) => void;
@@ -59,6 +74,7 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   problems: [], currentProblem: null, submissions: [], deprecatedRoom: null, room: null,
   code: '// Start coding here', originalCode: '// Start coding here', language: 'javascript',
   isRunning: false, isSubmitting: false, lastRunResult: null, lastSubmissionResult: null,
+  executionHistory: [],
   currentUser: null, myRooms: [], currentRoom: null, invitations: [], participants: [], isConnected: false,
   setProblem: (p) => set({ currentProblem: p }),
   setCode: (code) => set({ code }),
@@ -67,6 +83,10 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   setIsSubmitting: (submitting) => set({ isSubmitting: submitting }),
   setLastRunResult: (result) => set({ lastRunResult: result }),
   setLastSubmissionResult: (result) => set({ lastSubmissionResult: result }),
+  addExecutionHistory: (item) => set((state) => ({
+    executionHistory: [item, ...state.executionHistory].slice(0, 20),
+  })),
+  clearExecutionHistory: () => set({ executionHistory: [] }),
   resetOriginalCode: () => set({ originalCode: useInterviewStore.getState().code }),
   addSubmission: (s) => set({ submissions: [s, ...useInterviewStore.getState().submissions] }),
   setRoom: (room) => set({ deprecatedRoom: room, room, currentRoom: room }),
@@ -97,6 +117,9 @@ export const useInterviewStore = create<InterviewState>((set) => ({
     currentRoom: null, deprecatedRoom: null, room: null,
     currentProblem: null,
     invitations: [], participants: [], isConnected: false,
+    executionHistory: [],
+    lastRunResult: null,
+    lastSubmissionResult: null,
   }),
   setProblems: (problems) => set({ problems }),
   addProblem: (problem) => set((state) => ({ problems: [problem, ...state.problems] })),

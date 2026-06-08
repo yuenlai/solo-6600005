@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { useInterviewStore } from '../store/interview';
+import { useInterviewStore, ExecutionResult } from '../store/interview';
+import { SubmissionResult } from './SubmissionResult';
 
 const LANGUAGES = [
   { value: 'javascript', label: 'JavaScript' },
@@ -12,8 +13,8 @@ const LANGUAGES = [
 
 interface CodeEditorProps {
   disabled?: boolean;
-  onRun?: () => Promise<{ success: boolean; output?: string; error?: string }>;
-  onSubmit?: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  onRun?: () => Promise<ExecutionResult>;
+  onSubmit?: () => Promise<ExecutionResult>;
   showRunButton?: boolean;
   showSubmitButton?: boolean;
 }
@@ -37,8 +38,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     setIsSubmitting,
     setLastRunResult,
     setLastSubmissionResult,
+    addExecutionHistory,
     resetOriginalCode,
     currentProblem,
+    lastRunResult,
+    lastSubmissionResult,
   } = useInterviewStore();
 
   const [languageConfirmOpen, setLanguageConfirmOpen] = useState(false);
@@ -105,6 +109,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       }
 
       setLastRunResult(result);
+
+      const passedCount = result.testResults?.filter(t => t.passed).length || 0;
+      const totalCount = result.testResults?.length || 0;
+      addExecutionHistory({
+        id: `run-${Date.now()}`,
+        type: 'run',
+        result,
+        timestamp: new Date().toISOString(),
+        language,
+        passedCount,
+        totalCount,
+        runtime: result.runtime,
+        memory: result.memory,
+      });
+
       if (result.success) {
         showStatus('success', '运行成功 ✓');
       } else {
@@ -113,11 +132,20 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     } catch (error) {
       const errorResult = { success: false, error: error instanceof Error ? error.message : '运行出错' };
       setLastRunResult(errorResult);
+      addExecutionHistory({
+        id: `run-${Date.now()}`,
+        type: 'run',
+        result: errorResult,
+        timestamp: new Date().toISOString(),
+        language,
+        passedCount: 0,
+        totalCount: 0,
+      });
       showStatus('error', errorResult.error);
     } finally {
       setIsRunning(false);
     }
-  }, [disabled, isRunning, isSubmitting, onRun, setIsRunning, setLastRunResult, showStatus]);
+  }, [disabled, isRunning, isSubmitting, onRun, setIsRunning, setLastRunResult, addExecutionHistory, language, showStatus]);
 
   const handleSubmit = useCallback(async () => {
     if (disabled || isRunning || isSubmitting) return;
@@ -140,6 +168,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         result = {
           success: Math.random() > 0.3,
           output: `// 模拟提交结果\n通过 ${Math.floor(Math.random() * testCases.length) + 1}/${testCases.length} 个测试用例`,
+          runtime: Math.floor(Math.random() * 80) + 20,
+          memory: Math.floor(Math.random() * 60) + 30,
           testResults: testCases.map(t => ({
             passed: Math.random() > 0.3,
             input: t.input,
@@ -150,6 +180,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       }
 
       setLastSubmissionResult(result);
+
+      const passedCount = result.testResults?.filter(t => t.passed).length || 0;
+      const totalCount = result.testResults?.length || 0;
+      addExecutionHistory({
+        id: `submit-${Date.now()}`,
+        type: 'submit',
+        result,
+        timestamp: new Date().toISOString(),
+        language,
+        passedCount,
+        totalCount,
+        runtime: result.runtime,
+        memory: result.memory,
+      });
+
       if (result.success) {
         showStatus('success', '提交成功 ✓ 所有测试用例通过');
       } else {
@@ -158,11 +203,20 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     } catch (error) {
       const errorResult = { success: false, error: error instanceof Error ? error.message : '提交出错' };
       setLastSubmissionResult(errorResult);
+      addExecutionHistory({
+        id: `submit-${Date.now()}`,
+        type: 'submit',
+        result: errorResult,
+        timestamp: new Date().toISOString(),
+        language,
+        passedCount: 0,
+        totalCount: 0,
+      });
       showStatus('error', errorResult.error);
     } finally {
       setIsSubmitting(false);
     }
-  }, [disabled, isRunning, isSubmitting, onSubmit, currentProblem, setIsSubmitting, setLastSubmissionResult, showStatus]);
+  }, [disabled, isRunning, isSubmitting, onSubmit, currentProblem, setIsSubmitting, setLastSubmissionResult, addExecutionHistory, language, showStatus]);
 
   const buttonBaseStyle: React.CSSProperties = {
     padding: '6px 18px',
@@ -419,20 +473,54 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         </div>
       )}
 
-      <Editor
-        height="calc(100vh - 200px)"
-        language={language}
-        value={code}
-        onChange={(v) => setCode(v || '')}
-        theme="vs-dark"
-        options={{
-          fontSize: 14,
-          minimap: { enabled: false },
-          wordWrap: 'on',
-          readOnly: disabled,
-          automaticLayout: true,
-        }}
-      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: lastRunResult || lastSubmissionResult ? '0 0 60%' : '1', overflow: 'hidden', minHeight: '200px' }}>
+          <Editor
+            height="100%"
+            language={language}
+            value={code}
+            onChange={(v) => setCode(v || '')}
+            theme="vs-dark"
+            options={{
+              fontSize: 14,
+              minimap: { enabled: false },
+              wordWrap: 'on',
+              readOnly: disabled,
+              automaticLayout: true,
+            }}
+          />
+        </div>
+
+        {lastSubmissionResult && (
+          <div style={{ flex: '0 0 40%', minHeight: '200px', display: 'flex', flexDirection: 'column' }}>
+            <SubmissionResult
+              title="提交结果"
+              type="submit"
+              success={lastSubmissionResult.success}
+              output={lastSubmissionResult.output}
+              error={lastSubmissionResult.error}
+              runtime={lastSubmissionResult.runtime}
+              memory={lastSubmissionResult.memory}
+              testResults={lastSubmissionResult.testResults}
+            />
+          </div>
+        )}
+
+        {!lastSubmissionResult && lastRunResult && (
+          <div style={{ flex: '0 0 40%', minHeight: '200px', display: 'flex', flexDirection: 'column' }}>
+            <SubmissionResult
+              title="运行结果"
+              type="run"
+              success={lastRunResult.success}
+              output={lastRunResult.output}
+              error={lastRunResult.error}
+              runtime={lastRunResult.runtime}
+              memory={lastRunResult.memory}
+              testResults={lastRunResult.testResults}
+            />
+          </div>
+        )}
+      </div>
 
       <style>{`
         @keyframes spin {
