@@ -343,7 +343,9 @@ export const InterviewerRoomView: React.FC = () => {
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <ProblemPanel problem={currentProblem} />
-          <CodeEditor />
+          <CodeEditor
+            disabled={currentRoom.status !== 'ACTIVE'}
+          />
         </div>
       </div>
 

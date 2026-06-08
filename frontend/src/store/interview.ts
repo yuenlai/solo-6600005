@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { Problem, Submission, InterviewRoom, User, CandidateInvitation, ParticipantStatus } from '../types';
 
+interface ExecutionResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  runtime?: number;
+  memory?: number;
+  testResults?: { passed: boolean; input: string; expected: string; actual?: string }[];
+}
+
 interface InterviewState {
   problems: Problem[];
   currentProblem: Problem | null;
@@ -8,7 +17,12 @@ interface InterviewState {
   deprecatedRoom: InterviewRoom | null;
   room: InterviewRoom | null;
   code: string;
+  originalCode: string;
   language: string;
+  isRunning: boolean;
+  isSubmitting: boolean;
+  lastRunResult: ExecutionResult | null;
+  lastSubmissionResult: ExecutionResult | null;
   currentUser: User | null;
   myRooms: InterviewRoom[];
   currentRoom: InterviewRoom | null;
@@ -18,6 +32,11 @@ interface InterviewState {
   setProblem: (p: Problem) => void;
   setCode: (code: string) => void;
   setLanguage: (lang: string) => void;
+  setIsRunning: (running: boolean) => void;
+  setIsSubmitting: (submitting: boolean) => void;
+  setLastRunResult: (result: ExecutionResult | null) => void;
+  setLastSubmissionResult: (result: ExecutionResult | null) => void;
+  resetOriginalCode: () => void;
   addSubmission: (s: Submission) => void;
   setRoom: (room: InterviewRoom) => void;
   setCurrentUser: (user: User) => void;
@@ -38,11 +57,17 @@ interface InterviewState {
 
 export const useInterviewStore = create<InterviewState>((set) => ({
   problems: [], currentProblem: null, submissions: [], deprecatedRoom: null, room: null,
-  code: '// Start coding here', language: 'javascript',
+  code: '// Start coding here', originalCode: '// Start coding here', language: 'javascript',
+  isRunning: false, isSubmitting: false, lastRunResult: null, lastSubmissionResult: null,
   currentUser: null, myRooms: [], currentRoom: null, invitations: [], participants: [], isConnected: false,
   setProblem: (p) => set({ currentProblem: p }),
   setCode: (code) => set({ code }),
-  setLanguage: (lang) => set({ language: lang }),
+  setLanguage: (lang) => set({ language: lang, originalCode: useInterviewStore.getState().code }),
+  setIsRunning: (running) => set({ isRunning: running }),
+  setIsSubmitting: (submitting) => set({ isSubmitting: submitting }),
+  setLastRunResult: (result) => set({ lastRunResult: result }),
+  setLastSubmissionResult: (result) => set({ lastSubmissionResult: result }),
+  resetOriginalCode: () => set({ originalCode: useInterviewStore.getState().code }),
   addSubmission: (s) => set({ submissions: [s, ...useInterviewStore.getState().submissions] }),
   setRoom: (room) => set({ deprecatedRoom: room, room, currentRoom: room }),
   setCurrentUser: (user) => set({ currentUser: user }),
