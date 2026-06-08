@@ -130,15 +130,95 @@ export interface LanguageConfig {
   color: string;
   bgColor: string;
   borderColor: string;
+  defaultCode: string;
 }
 
+export const DEFAULT_CODE_TEMPLATES: Record<string, string> = {
+  javascript: `/**
+ * @param {string} s
+ * @return {boolean}
+ */
+function solution(s) {
+  // Write your code here
+  
+  return true;
+}
+
+// Test cases
+console.log(solution("test"));
+`,
+  typescript: `/**
+ * @param s - The input string
+ * @returns Whether the string is valid
+ */
+function solution(s: string): boolean {
+  // Write your code here
+  
+  return true;
+}
+
+// Test cases
+console.log(solution("test"));
+`,
+  python: `def solution(s: str) -> bool:
+    """
+    :param s: The input string
+    :return: Whether the string is valid
+    """
+    # Write your code here
+    
+    return True
+
+
+# Test cases
+if __name__ == "__main__":
+    print(solution("test"))
+`,
+  java: `public class Solution {
+    /**
+     * @param s The input string
+     * @return Whether the string is valid
+     */
+    public boolean solution(String s) {
+        // Write your code here
+        
+        return true;
+    }
+    
+    public static void main(String[] args) {
+        Solution sol = new Solution();
+        System.out.println(sol.solution("test"));
+    }
+}
+`,
+  go: `package main
+
+import "fmt"
+
+// solution checks if the input string is valid
+func solution(s string) bool {
+	// Write your code here
+	
+	return true
+}
+
+func main() {
+	fmt.Println(solution("test"))
+}
+`,
+};
+
 export const LANGUAGE_CONFIGS: LanguageConfig[] = [
-  { value: 'javascript', label: 'JavaScript', icon: 'JS', color: '#f7df1e', bgColor: 'rgba(247, 223, 30, 0.15)', borderColor: '#f7df1e' },
-  { value: 'typescript', label: 'TypeScript', icon: 'TS', color: '#3178c6', bgColor: 'rgba(49, 120, 198, 0.15)', borderColor: '#3178c6' },
-  { value: 'python', label: 'Python', icon: 'PY', color: '#3776ab', bgColor: 'rgba(55, 118, 171, 0.15)', borderColor: '#3776ab' },
-  { value: 'java', label: 'Java', icon: 'JV', color: '#007396', bgColor: 'rgba(0, 115, 150, 0.15)', borderColor: '#007396' },
-  { value: 'go', label: 'Go', icon: 'GO', color: '#00add8', bgColor: 'rgba(0, 173, 216, 0.15)', borderColor: '#00add8' },
+  { value: 'javascript', label: 'JavaScript', icon: 'JS', color: '#f7df1e', bgColor: 'rgba(247, 223, 30, 0.15)', borderColor: '#f7df1e', defaultCode: DEFAULT_CODE_TEMPLATES.javascript },
+  { value: 'typescript', label: 'TypeScript', icon: 'TS', color: '#3178c6', bgColor: 'rgba(49, 120, 198, 0.15)', borderColor: '#3178c6', defaultCode: DEFAULT_CODE_TEMPLATES.typescript },
+  { value: 'python', label: 'Python', icon: 'PY', color: '#3776ab', bgColor: 'rgba(55, 118, 171, 0.15)', borderColor: '#3776ab', defaultCode: DEFAULT_CODE_TEMPLATES.python },
+  { value: 'java', label: 'Java', icon: 'JV', color: '#007396', bgColor: 'rgba(0, 115, 150, 0.15)', borderColor: '#007396', defaultCode: DEFAULT_CODE_TEMPLATES.java },
+  { value: 'go', label: 'Go', icon: 'GO', color: '#00add8', bgColor: 'rgba(0, 173, 216, 0.15)', borderColor: '#00add8', defaultCode: DEFAULT_CODE_TEMPLATES.go },
 ];
+
+export const getDefaultCodeByLanguage = (language: string): string => {
+  return DEFAULT_CODE_TEMPLATES[language] || DEFAULT_CODE_TEMPLATES.javascript;
+};
 
 export const getLanguageConfig = (value: string): LanguageConfig => {
   return LANGUAGE_CONFIGS.find(l => l.value === value) || LANGUAGE_CONFIGS[0];

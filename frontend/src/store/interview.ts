@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Problem, Submission, InterviewRoom, User, CandidateInvitation, ParticipantStatus } from '../types';
+import { Problem, Submission, InterviewRoom, User, CandidateInvitation, ParticipantStatus, getDefaultCodeByLanguage } from '../types';
 
 export interface ExecutionResult {
   success: boolean;
@@ -72,13 +72,23 @@ interface InterviewState {
 
 export const useInterviewStore = create<InterviewState>((set) => ({
   problems: [], currentProblem: null, submissions: [], deprecatedRoom: null, room: null,
-  code: '// Start coding here', originalCode: '// Start coding here', language: 'javascript',
+  code: getDefaultCodeByLanguage('javascript'), originalCode: getDefaultCodeByLanguage('javascript'), language: 'javascript',
   isRunning: false, isSubmitting: false, lastRunResult: null, lastSubmissionResult: null,
   executionHistory: [],
   currentUser: null, myRooms: [], currentRoom: null, invitations: [], participants: [], isConnected: false,
   setProblem: (p) => set({ currentProblem: p }),
   setCode: (code) => set({ code }),
-  setLanguage: (lang) => set({ language: lang, originalCode: useInterviewStore.getState().code }),
+  setLanguage: (lang) => {
+    const defaultCode = getDefaultCodeByLanguage(lang);
+    set({
+      language: lang,
+      code: defaultCode,
+      originalCode: defaultCode,
+      lastRunResult: null,
+      lastSubmissionResult: null,
+      executionHistory: [],
+    });
+  },
   setIsRunning: (running) => set({ isRunning: running }),
   setIsSubmitting: (submitting) => set({ isSubmitting: submitting }),
   setLastRunResult: (result) => set({ lastRunResult: result }),

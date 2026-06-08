@@ -32,7 +32,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     setLastRunResult,
     setLastSubmissionResult,
     addExecutionHistory,
-    resetOriginalCode,
     currentProblem,
     lastRunResult,
     lastSubmissionResult,
@@ -126,12 +125,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const confirmLanguageChange = useCallback(() => {
     if (pendingLanguage) {
       setLanguage(pendingLanguage);
-      resetOriginalCode();
       showStatus('info', `已切换到 ${LANGUAGE_CONFIGS.find(l => l.value === pendingLanguage)?.label || pendingLanguage}`);
     }
     setLanguageConfirmOpen(false);
     setPendingLanguage(null);
-  }, [pendingLanguage, setLanguage, resetOriginalCode, showStatus]);
+  }, [pendingLanguage, setLanguage, showStatus]);
 
   const getTimeAgo = (dateString: string) => {
     const diff = Date.now() - new Date(dateString).getTime();
