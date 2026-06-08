@@ -106,28 +106,112 @@ export const ProblemPanel: React.FC<Props> = ({ problem }) => {
 
         {problem.examples.map((ex, i) => (
           <div key={i} style={{
-            background: '#252526',
-            padding: '10px 12px',
-            borderRadius: '6px',
-            marginBottom: '8px',
+            background: '#1e1e1e',
+            borderRadius: '8px',
+            marginBottom: '12px',
             fontSize: '12px',
             color: '#ccc',
-            border: '1px solid #333',
+            border: '1px solid #3a3a3a',
+            overflow: 'hidden',
           }}>
-            <div style={{ marginBottom: '4px', lineHeight: 1.5 }}>
-              <strong style={{ color: '#569cd6', marginRight: '6px' }}>输入:</strong>
-              <code style={{ color: '#ce9178', fontFamily: 'monospace' }}>{ex.input}</code>
+            <div style={{
+              padding: '8px 14px',
+              background: '#2a2a2a',
+              borderBottom: '1px solid #3a3a3a',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#888',
+              letterSpacing: '0.5px',
+              textTransform: 'uppercase',
+            }}>
+              示例 {i + 1}
             </div>
-            <div style={{ marginBottom: ex.explanation ? '4px' : '0', lineHeight: 1.5 }}>
-              <strong style={{ color: '#569cd6', marginRight: '6px' }}>输出:</strong>
-              <code style={{ color: '#4ec9b0', fontFamily: 'monospace' }}>{ex.output}</code>
-            </div>
-            {ex.explanation && (
-              <div style={{ lineHeight: 1.5, paddingTop: '4px', borderTop: '1px dashed #444', marginTop: '4px' }}>
-                <strong style={{ color: '#569cd6', marginRight: '6px' }}>说明:</strong>
-                <span style={{ color: '#9cdcfe' }}>{ex.explanation}</span>
+
+            <div style={{
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#569cd6',
+                  letterSpacing: '0.3px',
+                }}>输入</span>
+                <pre style={{
+                  margin: 0,
+                  padding: '10px 12px',
+                  background: '#252526',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  lineHeight: 1.6,
+                  color: '#ce9178',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  overflowX: 'auto',
+                  maxHeight: '240px',
+                  overflowY: 'auto',
+                  border: '1px solid #333',
+                }}>{ex.input}</pre>
               </div>
-            )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#569cd6',
+                  letterSpacing: '0.3px',
+                }}>输出</span>
+                <pre style={{
+                  margin: 0,
+                  padding: '10px 12px',
+                  background: '#1e3a2e',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  lineHeight: 1.6,
+                  color: '#4ec9b0',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  overflowX: 'auto',
+                  maxHeight: '240px',
+                  overflowY: 'auto',
+                  border: '1px solid #2a4a3a',
+                }}>{ex.output}</pre>
+              </div>
+
+              {ex.explanation && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  marginTop: '2px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid #3a3a3a',
+                }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#c586c0',
+                    letterSpacing: '0.3px',
+                  }}>💡 说明</span>
+                  <div style={{
+                    padding: '10px 12px',
+                    background: '#2a1e2e',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    lineHeight: 1.7,
+                    color: '#d4a5ff',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    border: '1px solid #3a2a4a',
+                  }}>{ex.explanation}</div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
