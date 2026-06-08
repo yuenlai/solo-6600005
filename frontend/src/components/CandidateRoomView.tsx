@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRoomById, getRoomParticipants, heartbeat } from '../services/interviewRoomService';
 import { connect, disconnect, subscribeParticipants, subscribeRoomStatus, sendHeartbeat } from '../services/websocketService';
@@ -23,6 +23,12 @@ const CandidateRoomView: React.FC = () => {
     setProblem,
   } = useInterviewStore();
   const [loading, setLoading] = useState(true);
+  const [participantsPanelOpen, setParticipantsPanelOpen] = useState(false);
+  const [problemPanelWidth, setProblemPanelWidth] = useState(380);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const minPanelWidth = 300;
+  const maxPanelWidth = 600;
 
   const fetchRoomDetails = useCallback(async () => {
     if (!roomId) return;
@@ -90,6 +96,36 @@ const CandidateRoomView: React.FC = () => {
     resetRoom();
     navigate('/');
   };
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newWidth = e.clientX - containerRect.left - 56;
+      setProblemPanelWidth(Math.min(Math.max(newWidth, minPanelWidth), maxPanelWidth));
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, minPanelWidth, maxPanelWidth]);
+
+  const onlineCount = participants.filter(p => p.isOnline).length;
 
   useEffect(() => {
     let mounted = true;
@@ -263,7 +299,7 @@ const CandidateRoomView: React.FC = () => {
   const statusColor = getStatusColor(currentRoom.status);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', background: '#0d0d0d' }}>
+    <div ref={containerRef} style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', background: '#0d0d0d', userSelect: isDragging ? 'none' : 'auto' }}>
       <div style={{
         width: '56px',
         background: '#1a1a1a',
@@ -271,8 +307,8 @@ const CandidateRoomView: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '16px 0',
-        gap: '16px',
+        padding: '12px 0',
+        gap: '8px',
       }}>
         <button
           onClick={handleBack}
@@ -290,84 +326,179 @@ const CandidateRoomView: React.FC = () => {
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
           ←
         </button>
+
+        <div style={{ width: '32px', height: '1px', background: '#333', margin: '4px 0' }} />
+
+        <button
+          onClick={() => setParticipantsPanelOpen(!participantsPanelOpen)}
+          title={`参与者 (${onlineCount} 在线)`}
+          style={{
+            width: '40px', height: '40px',
+            background: participantsPanelOpen ? '#333' : 'transparent',
+            border: 'none',
+            color: participantsPanelOpen ? '#4caf50' : '#fff',
+            cursor: 'pointer',
+            fontSize: '18px',
+            borderRadius: '8px',
+            position: 'relative',
+          }}
+          onMouseEnter={(e) => { if (!participantsPanelOpen) e.currentTarget.style.background = '#333'; }}
+          onMouseLeave={(e) => { if (!participantsPanelOpen) e.currentTarget.style.background = 'transparent'; }}>
+          👥
+          {onlineCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '4px',
+              right: '4px',
+              minWidth: '16px',
+              height: '16px',
+              padding: '0 4px',
+              background: '#4caf50',
+              color: '#fff',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              {onlineCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{
-          background: statusColor + '15',
-          borderBottom: `1px solid ${statusColor}40`,
-          padding: '8px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '8px', height: '8px',
-              borderRadius: '50%',
-              background: statusColor,
-              animation: 'pulse 2s infinite',
-            }} />
-            <span style={{
-              color: statusColor,
-              fontSize: '14px',
-              fontWeight: 500,
-            }}>
-              {getStatusText(currentRoom.status)}
-            </span>
-          </div>
-        </div>
-
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div style={{
           background: '#1e1e1e',
           borderBottom: '1px solid #333',
-          padding: '12px 20px',
+          padding: '8px 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '16px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <h2 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>{currentRoom.title}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+            <h2 style={{ color: '#fff', margin: 0, fontSize: '16px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentRoom.title}</h2>
             <span style={{
-              padding: '4px 12px',
-              borderRadius: '12px',
+              padding: '3px 10px',
+              borderRadius: '10px',
               fontSize: '11px',
               fontWeight: 500,
               background: statusColor + '20',
               color: statusColor,
+              whiteSpace: 'nowrap',
             }}>
               {currentRoom.status}
             </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{
+                width: '6px', height: '6px',
+                borderRadius: '50%',
+                background: statusColor,
+                animation: 'pulse 2s infinite',
+              }} />
+              <span style={{
+                color: statusColor,
+                fontSize: '12px',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+              }}>
+                {getStatusText(currentRoom.status)}
+              </span>
+            </div>
           </div>
-          <div style={{ color: '#888', fontSize: '13px' }}>
+          <div style={{ color: '#888', fontSize: '12px', whiteSpace: 'nowrap' }}>
             房间码: <span style={{ color: '#4caf50', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '1px' }}>{currentRoom.roomCode}</span>
           </div>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <ProblemPanel problem={currentProblem} />
-          <CodeEditor
-            disabled={currentRoom.status !== 'ACTIVE'}
-          />
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ width: problemPanelWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <ProblemPanel problem={currentProblem} />
+          </div>
+
+          <div
+            onMouseDown={handleMouseDown}
+            style={{
+              width: '4px',
+              background: isDragging ? '#2196f3' : 'transparent',
+              cursor: 'col-resize',
+              flexShrink: 0,
+              transition: 'background 0.15s',
+              position: 'relative',
+            }}
+            onMouseEnter={(e) => { if (!isDragging) e.currentTarget.style.background = '#555'; }}
+            onMouseLeave={(e) => { if (!isDragging) e.currentTarget.style.background = 'transparent'; }}
+          >
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '20px',
+              height: '40px',
+              borderRadius: '4px',
+              background: isDragging ? '#2196f3' : '#333',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '2px',
+            }}>
+              <div style={{ width: '2px', height: '16px', background: '#666', borderRadius: '1px' }} />
+              <div style={{ width: '2px', height: '16px', background: '#666', borderRadius: '1px' }} />
+            </div>
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+            <CodeEditor
+              disabled={currentRoom.status !== 'ACTIVE'}
+            />
+          </div>
         </div>
       </div>
 
       <div style={{
-        width: '320px',
+        width: participantsPanelOpen ? '280px' : '0',
         background: '#1a1a1a',
-        borderLeft: '1px solid #333',
-        padding: '16px',
-        overflowY: 'auto',
+        borderLeft: participantsPanelOpen ? '1px solid #333' : 'none',
+        overflow: 'hidden',
+        transition: 'width 0.25s ease, border-left 0.25s ease',
+        flexShrink: 0,
       }}>
-        <div>
-          <h4 style={{
-            margin: '0 0 12px 0',
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#999',
-          }}>
-            参与者 ({participants.length})
-          </h4>
+        <div style={{
+          padding: '16px',
+          width: '280px',
+          height: '100%',
+          overflowY: 'auto',
+          boxSizing: 'border-box',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h4 style={{
+              margin: 0,
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#999',
+            }}>
+              参与者 ({participants.length})
+            </h4>
+            <button
+              onClick={() => setParticipantsPanelOpen(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#888',
+                cursor: 'pointer',
+                fontSize: '16px',
+                padding: '4px',
+                borderRadius: '4px',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#888'; }}
+            >
+              ×
+            </button>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {participants.map((participant: ParticipantStatus) => {
               const isSelf = currentUser && participant.userId === currentUser.id;
@@ -377,7 +508,7 @@ const CandidateRoomView: React.FC = () => {
                 <div
                   key={participant.id}
                   style={{
-                    padding: '12px',
+                    padding: '10px',
                     backgroundColor: isSelf ? '#2a3f4f' : '#2a2a2a',
                     borderRadius: '6px',
                     border: isSelf ? '1px solid #2196f3' : '1px solid transparent',
@@ -388,20 +519,20 @@ const CandidateRoomView: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    marginBottom: '8px',
+                    marginBottom: '6px',
                   }}>
                     <div style={{
-                      width: '10px',
-                      height: '10px',
+                      width: '8px',
+                      height: '8px',
                       borderRadius: '50%',
                       backgroundColor: participant.isOnline ? '#4caf50' : '#666',
-                      boxShadow: participant.isOnline ? '0 0 8px #4caf50' : 'none',
+                      boxShadow: participant.isOnline ? '0 0 6px #4caf50' : 'none',
                       flexShrink: 0,
                     }} />
                     <span style={{
-                      padding: '2px 8px',
+                      padding: '2px 6px',
                       borderRadius: '4px',
-                      fontSize: '11px',
+                      fontSize: '10px',
                       fontWeight: 500,
                       backgroundColor: isInterviewer ? '#9c27b0' : '#2196f3',
                       color: '#fff',
@@ -410,24 +541,26 @@ const CandidateRoomView: React.FC = () => {
                     </span>
                     <span style={{
                       fontWeight: 500,
-                      fontSize: '14px',
+                      fontSize: '13px',
+                      color: '#fff',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}>
                       {participant.userName}
-                      {isSelf && <span style={{ color: '#2196f3', marginLeft: '4px' }}>(我)</span>}
+                      {isSelf && <span style={{ color: '#2196f3', marginLeft: '4px', fontSize: '11px' }}>(我)</span>}
                     </span>
                   </div>
                   <div style={{
-                    fontSize: '12px',
+                    fontSize: '11px',
                     color: '#888',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '2px',
+                    paddingLeft: '16px',
                   }}>
-                    <span>加入时间: {formatTime(participant.joinedAt)}</span>
-                    <span>最后活跃: {formatTime(participant.lastHeartbeat)}</span>
+                    <span>加入: {formatTime(participant.joinedAt)}</span>
+                    <span>活跃: {formatTime(participant.lastHeartbeat)}</span>
                   </div>
                 </div>
               );
