@@ -70,6 +70,7 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   setIsConnected: (connected) => set({ isConnected: connected }),
   resetRoom: () => set({
     currentRoom: null, deprecatedRoom: null, room: null,
+    currentProblem: null,
     invitations: [], participants: [], isConnected: false,
   }),
   setProblems: (problems) => set({ problems }),

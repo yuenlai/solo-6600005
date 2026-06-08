@@ -6,20 +6,10 @@ import { CreateRoomModal } from './CreateRoomModal';
 import { InvitePanel } from './InvitePanel';
 import ParticipantList from './ParticipantList';
 import { useInterviewStore } from '../store/interview';
-import { Problem, ParticipantStatus } from '../types';
+import { ParticipantStatus } from '../types';
 import { getRoomById, updateRoomStatus, getRoomParticipants, heartbeat } from '../services/interviewRoomService';
 import { connect, disconnect, subscribeParticipants, subscribeRoomStatus, sendHeartbeat } from '../services/websocketService';
-
-const mockProblem: Problem = {
-  id: 'p1', title: 'Two Sum', difficulty: 'easy',
-  description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
-  examples: [{ input: 'nums = [2,7,11,15], target = 9', output: '[0,1]', explanation: 'nums[0] + nums[1] == 9' }],
-  testCases: [
-    { input: '[2,7,11,15], 9', expectedOutput: '[0,1]', hidden: false },
-    { input: '[3,2,4], 6', expectedOutput: '[1,2]', hidden: false },
-  ],
-  tags: ['Array', 'HashMap'], timeLimit: 2000, memoryLimit: 256
-};
+import { getProblemById } from '../services/problemService';
 
 export const InterviewerRoomView: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -27,11 +17,13 @@ export const InterviewerRoomView: React.FC = () => {
   const {
     currentRoom,
     currentUser,
+    currentProblem,
     setCurrentRoom,
     setParticipants,
     updateParticipant,
     setIsConnected,
     resetRoom,
+    setProblem,
   } = useInterviewStore();
   const [showInvitePanel, setShowInvitePanel] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -46,10 +38,14 @@ export const InterviewerRoomView: React.FC = () => {
     try {
       const data = await getRoomById(roomId);
       setCurrentRoom(data);
+      if (data.problemId) {
+        const problem = await getProblemById(data.problemId);
+        setProblem(problem);
+      }
     } catch (error) {
       console.error('Failed to fetch room details:', error);
     }
-  }, [roomId, setCurrentRoom]);
+  }, [roomId, setCurrentRoom, setProblem]);
 
   const fetchParticipants = useCallback(async () => {
     if (!roomId) return;
@@ -206,6 +202,34 @@ export const InterviewerRoomView: React.FC = () => {
     );
   }
 
+  if (!currentProblem) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: '#0d0d0d',
+        flexDirection: 'column',
+        gap: '16px',
+      }}>
+        <div style={{ color: '#ff9800', fontSize: '16px' }}>题目加载失败，请稍后重试</div>
+        <button
+          onClick={handleBack}
+          style={{
+            padding: '10px 24px',
+            background: '#2196f3',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+          }}>
+          返回首页
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', background: '#0d0d0d' }}>
       <div style={{
@@ -318,7 +342,7 @@ export const InterviewerRoomView: React.FC = () => {
         </div>
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <ProblemPanel problem={mockProblem} />
+          <ProblemPanel problem={currentProblem} />
           <CodeEditor />
         </div>
       </div>

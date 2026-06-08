@@ -5,24 +5,8 @@ import { connect, disconnect, subscribeParticipants, subscribeRoomStatus, sendHe
 import { useInterviewStore } from '../store/interview';
 import { ProblemPanel } from './ProblemPanel';
 import { CodeEditor } from './CodeEditor';
-import { Problem, ParticipantStatus } from '../types';
-
-const mockProblem: Problem = {
-  id: 'p1',
-  title: 'Two Sum',
-  difficulty: 'easy',
-  description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
-  examples: [
-    { input: 'nums = [2,7,11,15], target = 9', output: '[0,1]', explanation: 'nums[0] + nums[1] == 9' }
-  ],
-  testCases: [
-    { input: '[2,7,11,15], 9', expectedOutput: '[0,1]', hidden: false },
-    { input: '[3,2,4], 6', expectedOutput: '[1,2]', hidden: false },
-  ],
-  tags: ['Array', 'HashMap'],
-  timeLimit: 2000,
-  memoryLimit: 256
-};
+import { ParticipantStatus } from '../types';
+import { getProblemById } from '../services/problemService';
 
 const CandidateRoomView: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -30,24 +14,29 @@ const CandidateRoomView: React.FC = () => {
   const {
     currentRoom,
     currentUser,
+    currentProblem,
     participants,
     setCurrentRoom,
     setParticipants,
     updateParticipant,
     resetRoom,
+    setProblem,
   } = useInterviewStore();
   const [loading, setLoading] = useState(true);
-  const [problem] = useState<Problem>(mockProblem);
 
   const fetchRoomDetails = useCallback(async () => {
     if (!roomId) return;
     try {
       const data = await getRoomById(roomId);
       setCurrentRoom(data);
+      if (data.problemId) {
+        const problem = await getProblemById(data.problemId);
+        setProblem(problem);
+      }
     } catch (error) {
       console.error('Failed to fetch room details:', error);
     }
-  }, [roomId, setCurrentRoom]);
+  }, [roomId, setCurrentRoom, setProblem]);
 
   const fetchParticipants = useCallback(async () => {
     if (!roomId) return;
@@ -233,6 +222,44 @@ const CandidateRoomView: React.FC = () => {
     );
   }
 
+  if (!currentProblem) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: '#0d0d0d',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'sans-serif',
+      }}>
+        <div style={{
+          background: '#1e1e1e',
+          borderRadius: '8px',
+          padding: '32px',
+          textAlign: 'center',
+          border: '1px solid #333',
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
+          <h2 style={{ color: '#fff', margin: '0 0 8px 0' }}>题目加载中...</h2>
+          <p style={{ color: '#888', margin: '0 0 24px 0' }}>请稍候</p>
+          <button
+            onClick={handleBack}
+            style={{
+              padding: '10px 24px',
+              background: '#2196f3',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}>
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const statusColor = getStatusColor(currentRoom.status);
 
   return (
@@ -318,7 +345,7 @@ const CandidateRoomView: React.FC = () => {
         </div>
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <ProblemPanel problem={problem} />
+          <ProblemPanel problem={currentProblem} />
           <CodeEditor />
         </div>
       </div>

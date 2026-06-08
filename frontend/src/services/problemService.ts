@@ -15,7 +15,7 @@ export interface ProblemListParams {
 
 let useMockFallback = false;
 
-const setUseMockFallback = (value: boolean) => {
+export const setUseMockFallback = (value: boolean) => {
   useMockFallback = value;
   if (value) {
     console.warn('⚠️ 后端服务不可用，已切换到 Mock 数据模式。数据将保存在浏览器本地存储中。');

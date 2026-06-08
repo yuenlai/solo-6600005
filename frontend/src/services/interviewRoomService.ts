@@ -11,13 +11,14 @@ import {
   mockLeaveRoom,
   mockHeartbeat,
 } from './mockInterviewRoomService';
-import { isUsingMockData } from './problemService';
+import { isUsingMockData, setUseMockFallback } from './problemService';
 
 const handleApiError = (error: any): boolean => {
   if (error.message.includes('Failed to fetch') ||
       error.message.includes('NetworkError') ||
       error.message.includes('ECONNREFUSED') ||
       error.status === 0) {
+    setUseMockFallback(true);
     return true;
   }
   return false;
