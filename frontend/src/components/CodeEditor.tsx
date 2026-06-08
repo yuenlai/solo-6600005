@@ -32,6 +32,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     setLastRunResult,
     setLastSubmissionResult,
     addExecutionHistory,
+    updateExecutionHistory,
     currentProblem,
     lastRunResult,
     lastSubmissionResult,
@@ -149,9 +150,23 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const handleRun = useCallback(async () => {
     if (disabled || isRunning || isSubmitting) return;
 
+    const historyId = `run-${Date.now()}`;
+    const pendingResult: ExecutionResult = { success: false, output: '代码运行中...' };
+
     setIsRunning(true);
     setLastRunResult(null);
     showStatus('info', '正在运行代码...');
+
+    addExecutionHistory({
+      id: historyId,
+      type: 'run',
+      result: pendingResult,
+      timestamp: new Date().toISOString(),
+      language,
+      passedCount: 0,
+      totalCount: 0,
+      status: 'running',
+    });
 
     try {
       let result;
@@ -166,16 +181,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
       const passedCount = result.testResults?.filter(t => t.passed).length || 0;
       const totalCount = result.testResults?.length || 0;
-      addExecutionHistory({
-        id: `run-${Date.now()}`,
-        type: 'run',
+      const isSuccess = result.success && (totalCount === 0 || passedCount === totalCount);
+
+      updateExecutionHistory(historyId, {
         result,
-        timestamp: new Date().toISOString(),
-        language,
         passedCount,
         totalCount,
         runtime: result.runtime,
         memory: result.memory,
+        status: isSuccess ? 'success' : 'failed',
       });
 
       if (result.success) {
@@ -186,20 +200,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     } catch (error) {
       const errorResult = { success: false, error: error instanceof Error ? error.message : '运行出错' };
       setLastRunResult(errorResult);
-      addExecutionHistory({
-        id: `run-${Date.now()}`,
-        type: 'run',
+      updateExecutionHistory(historyId, {
         result: errorResult,
-        timestamp: new Date().toISOString(),
-        language,
-        passedCount: 0,
-        totalCount: 0,
+        status: 'failed',
       });
       showStatus('error', errorResult.error);
     } finally {
       setIsRunning(false);
     }
-  }, [disabled, isRunning, isSubmitting, onRun, setIsRunning, setLastRunResult, addExecutionHistory, language, showStatus]);
+  }, [disabled, isRunning, isSubmitting, onRun, setIsRunning, setLastRunResult, addExecutionHistory, updateExecutionHistory, language, showStatus]);
 
   const handleSubmit = useCallback(async () => {
     if (disabled || isRunning || isSubmitting) return;
@@ -208,9 +217,23 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       return;
     }
 
+    const historyId = `submit-${Date.now()}`;
+    const pendingResult: ExecutionResult = { success: false, output: '代码提交中...' };
+
     setIsSubmitting(true);
     setLastSubmissionResult(null);
     showStatus('info', '正在提交代码...');
+
+    addExecutionHistory({
+      id: historyId,
+      type: 'submit',
+      result: pendingResult,
+      timestamp: new Date().toISOString(),
+      language,
+      passedCount: 0,
+      totalCount: 0,
+      status: 'running',
+    });
 
     try {
       let result;
@@ -237,16 +260,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
       const passedCount = result.testResults?.filter(t => t.passed).length || 0;
       const totalCount = result.testResults?.length || 0;
-      addExecutionHistory({
-        id: `submit-${Date.now()}`,
-        type: 'submit',
+      const isSuccess = result.success && passedCount === totalCount && totalCount > 0;
+
+      updateExecutionHistory(historyId, {
         result,
-        timestamp: new Date().toISOString(),
-        language,
         passedCount,
         totalCount,
         runtime: result.runtime,
         memory: result.memory,
+        status: isSuccess ? 'success' : 'failed',
       });
 
       if (result.success) {
@@ -257,20 +279,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     } catch (error) {
       const errorResult = { success: false, error: error instanceof Error ? error.message : '提交出错' };
       setLastSubmissionResult(errorResult);
-      addExecutionHistory({
-        id: `submit-${Date.now()}`,
-        type: 'submit',
+      updateExecutionHistory(historyId, {
         result: errorResult,
-        timestamp: new Date().toISOString(),
-        language,
-        passedCount: 0,
-        totalCount: 0,
+        status: 'failed',
       });
       showStatus('error', errorResult.error);
     } finally {
       setIsSubmitting(false);
     }
-  }, [disabled, isRunning, isSubmitting, onSubmit, currentProblem, setIsSubmitting, setLastSubmissionResult, addExecutionHistory, language, showStatus]);
+  }, [disabled, isRunning, isSubmitting, onSubmit, currentProblem, setIsSubmitting, setLastSubmissionResult, addExecutionHistory, updateExecutionHistory, language, showStatus]);
 
   const buttonBaseStyle: React.CSSProperties = {
     padding: '6px 18px',

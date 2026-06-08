@@ -20,6 +20,7 @@ export interface ExecutionHistoryItem {
   totalCount: number;
   runtime?: number;
   memory?: number;
+  status: 'pending' | 'running' | 'success' | 'failed';
 }
 
 interface InterviewState {
@@ -68,6 +69,7 @@ interface InterviewState {
   addProblem: (problem: Problem) => void;
   updateProblem: (problem: Problem) => void;
   removeProblem: (problemId: string) => void;
+  updateExecutionHistory: (id: string, updates: Partial<ExecutionHistoryItem>) => void;
 }
 
 export const useInterviewStore = create<InterviewState>((set) => ({
@@ -138,5 +140,10 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   })),
   removeProblem: (problemId) => set((state) => ({
     problems: state.problems.filter((p) => p.id !== problemId),
+  })),
+  updateExecutionHistory: (id, updates) => set((state) => ({
+    executionHistory: state.executionHistory.map((item) =>
+      item.id === id ? { ...item, ...updates } : item
+    ),
   })),
 }));

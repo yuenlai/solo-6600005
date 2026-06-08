@@ -18,6 +18,37 @@ interface SubmissionResultProps {
 const getStatusColor = (passed: boolean) => passed ? '#4caf50' : '#f44336';
 const getStatusBg = (passed: boolean) => passed ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)';
 
+const STATUS_CONFIG = {
+  running: {
+    color: '#2196f3',
+    bg: 'rgba(33, 150, 243, 0.1)',
+    border: 'rgba(33, 150, 243, 0.3)',
+    icon: '⏳',
+    label: '运行中',
+  },
+  success: {
+    color: '#4caf50',
+    bg: 'rgba(76, 175, 80, 0.1)',
+    border: 'rgba(76, 175, 80, 0.3)',
+    icon: '✓',
+    label: '通过',
+  },
+  failed: {
+    color: '#f44336',
+    bg: 'rgba(244, 67, 54, 0.1)',
+    border: 'rgba(244, 67, 54, 0.3)',
+    icon: '✗',
+    label: '失败',
+  },
+  pending: {
+    color: '#ff9800',
+    bg: 'rgba(255, 152, 0, 0.1)',
+    border: 'rgba(255, 152, 0, 0.3)',
+    icon: '◷',
+    label: '等待中',
+  },
+} as const;
+
 const formatTime = (dateString: string) => {
   return new Date(dateString).toLocaleTimeString('zh-CN', {
     hour: '2-digit',
@@ -128,7 +159,7 @@ const SparkLineChart: React.FC<{
 };
 
 const BarChart: React.FC<{
-  items: { label: string; value: number; max: number; color: string }[];
+  items: { label: string; value: number; max: number; color: string; status?: 'running' | 'success' | 'failed' }[];
 }> = ({ items }) => {
   return (
     <div style={{
@@ -139,7 +170,8 @@ const BarChart: React.FC<{
       padding: '0 4px',
     }}>
       {items.map((item, idx) => {
-        const percentage = Math.min((item.value / item.max) * 100, 100);
+        const percentage = item.status === 'running' ? 10 : Math.min((item.value / item.max) * 100, 100);
+        const isLatest = idx === 0;
         return (
           <div key={idx} style={{
             flex: 1,
@@ -151,23 +183,33 @@ const BarChart: React.FC<{
             justifyContent: 'flex-end',
           }}>
             <span style={{
-              fontSize: '10px',
+              fontSize: isLatest ? '11px' : '10px',
               color: item.color,
-              fontWeight: 600,
+              fontWeight: isLatest ? 700 : 600,
               fontFamily: 'monospace',
             }}>
-              {item.value}/{item.max}
+              {item.status === 'running' ? '---' : `${item.value}/${item.max}`}
             </span>
             <div style={{
               width: '100%',
               height: `${percentage}%`,
-              background: item.color,
+              background: item.status === 'running'
+                ? 'linear-gradient(180deg, #2196f3 0%, #64b5f6 100%)'
+                : `linear-gradient(180deg, ${item.color} 0%, ${item.color}cc 100%)`,
               borderRadius: '4px 4px 0 0',
               minHeight: '4px',
-              opacity: 0.8,
-              transition: 'height 0.3s ease',
+              opacity: isLatest ? 1 : 0.85,
+              transition: 'height 0.5s ease',
+              boxShadow: isLatest ? `0 0 12px ${item.color}40` : 'none',
+              animation: item.status === 'running' ? 'pulse-border 1.5s ease-in-out infinite' : 'none',
             }} />
-            <span style={{ fontSize: '10px', color: '#888' }}>{item.label}</span>
+            <span style={{
+              fontSize: isLatest ? '11px' : '10px',
+              color: isLatest ? '#aaa' : '#888',
+              fontWeight: isLatest ? 600 : 500,
+            }}>
+              {item.label}
+            </span>
           </div>
         );
       })}
@@ -307,7 +349,9 @@ const HistoryTimelineItem: React.FC<{
   onClick: () => void;
 }> = ({ item, isSelected, isLatest, onClick }) => {
   const passRate = item.totalCount > 0 ? (item.passedCount / item.totalCount) * 100 : 0;
-  const isSuccess = item.passedCount === item.totalCount && item.totalCount > 0;
+  const status = item.status || (item.passedCount === item.totalCount && item.totalCount > 0 ? 'success' : 'failed');
+  const statusConfig = STATUS_CONFIG[status];
+  const isRunning = status === 'running' || status === 'pending';
 
   return (
     <div
@@ -316,75 +360,151 @@ const HistoryTimelineItem: React.FC<{
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
-        padding: '10px 12px',
-        borderRadius: '6px',
+        padding: isLatest ? '12px 14px' : '10px 12px',
+        borderRadius: isLatest ? '10px' : '8px',
         cursor: 'pointer',
-        background: isSelected ? 'rgba(33, 150, 243, 0.1)' : 'transparent',
-        border: `1px solid ${isSelected ? '#2196f3' : 'transparent'}`,
-        transition: 'all 0.2s',
+        background: isLatest
+          ? `linear-gradient(135deg, ${statusConfig.bg} 0%, rgba(33, 150, 243, 0.05) 100%)`
+          : isSelected
+          ? 'rgba(33, 150, 243, 0.1)'
+          : 'transparent',
+        border: `1px solid ${isLatest ? statusConfig.border : isSelected ? '#2196f3' : 'transparent'}`,
+        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        position: 'relative',
+        animation: isLatest ? 'pulse-border 2s ease-in-out infinite' : 'none',
       }}
       onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = '#2a2a2a';
+        if (!isSelected && !isLatest) e.currentTarget.style.background = '#2a2a2a';
       }}
       onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.background = 'transparent';
+        if (!isSelected && !isLatest) e.currentTarget.style.background = 'transparent';
       }}
     >
+      {isLatest && (
+        <div style={{
+          position: 'absolute',
+          top: '-6px',
+          right: '12px',
+          padding: '2px 8px',
+          background: 'linear-gradient(135deg, #ff9800 0%, #ff5722 100%)',
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: 700,
+          borderRadius: '10px',
+          boxShadow: '0 2px 8px rgba(255, 152, 0, 0.4)',
+          letterSpacing: '0.5px',
+        }}>
+          最新
+        </div>
+      )}
+
       <div style={{
-        width: '8px',
-        height: '8px',
+        width: isLatest ? '28px' : '24px',
+        height: isLatest ? '28px' : '24px',
         borderRadius: '50%',
-        background: isSuccess ? '#4caf50' : '#f44336',
+        background: statusConfig.bg,
+        border: `2px solid ${statusConfig.color}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         flexShrink: 0,
-        boxShadow: isLatest ? `0 0 8px ${isSuccess ? '#4caf50' : '#f44336'}` : 'none',
-      }} />
+        fontSize: isLatest ? '14px' : '12px',
+        color: statusConfig.color,
+        fontWeight: 'bold',
+        boxShadow: isLatest
+          ? `0 0 16px ${statusConfig.color}60, inset 0 0 8px ${statusConfig.color}20`
+          : `0 0 8px ${statusConfig.color}30`,
+        animation: isRunning ? 'spin-pulse 1.5s ease-in-out infinite' : 'none',
+      }}>
+        {statusConfig.icon}
+      </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
           <span style={{
             fontSize: '11px',
-            padding: '2px 6px',
-            borderRadius: '3px',
+            padding: '3px 8px',
+            borderRadius: '4px',
             background: item.type === 'submit' ? 'rgba(33, 150, 243, 0.2)' : 'rgba(156, 39, 176, 0.2)',
             color: item.type === 'submit' ? '#64b5f6' : '#ba68c8',
-            fontWeight: 600,
+            fontWeight: 700,
+            letterSpacing: '0.3px',
           }}>
             {item.type === 'submit' ? '提交' : '运行'}
           </span>
-          <span style={{ fontSize: '11px', color: '#888' }}>{formatTime(item.timestamp)}</span>
-          {isLatest && (
-            <span style={{ fontSize: '10px', color: '#ff9800', fontWeight: 600 }}>最新</span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#bbb' }}>
-          <span style={{ color: isSuccess ? '#4caf50' : '#f44336', fontFamily: 'monospace' }}>
-            {item.passedCount}/{item.totalCount || '-'}
+          <span style={{
+            fontSize: '10px',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            background: statusConfig.bg,
+            color: statusConfig.color,
+            fontWeight: 600,
+            border: `1px solid ${statusConfig.border}`,
+          }}>
+            {statusConfig.label}
           </span>
-          {item.runtime !== undefined && (
-            <span style={{ color: '#2196f3', fontFamily: 'monospace' }}>
-              {item.runtime}ms
+          <span style={{ fontSize: '11px', color: '#888', fontFamily: 'monospace' }}>
+            {formatTime(item.timestamp)}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: isLatest ? '12px' : '11px', color: '#bbb' }}>
+          <span style={{
+            color: statusConfig.color,
+            fontFamily: 'monospace',
+            fontWeight: isLatest ? 700 : 600,
+            fontSize: isLatest ? '13px' : '12px',
+          }}>
+            {isRunning ? '---' : `${item.passedCount}/${item.totalCount || '-'}`}
+          </span>
+          {item.runtime !== undefined && !isRunning && (
+            <span style={{ color: '#2196f3', fontFamily: 'monospace', fontWeight: 500 }}>
+              ⏱ {item.runtime}ms
             </span>
           )}
-          {item.memory !== undefined && (
-            <span style={{ color: '#9c27b0', fontFamily: 'monospace' }}>
-              {item.memory}MB
+          {item.memory !== undefined && !isRunning && (
+            <span style={{ color: '#9c27b0', fontFamily: 'monospace', fontWeight: 500 }}>
+              💾 {item.memory}MB
+            </span>
+          )}
+          {isRunning && (
+            <span style={{ color: statusConfig.color, fontSize: '11px', fontWeight: 500 }}>
+              正在执行，请稍候...
             </span>
           )}
         </div>
       </div>
 
       <div style={{
-        width: '40px',
-        height: '4px',
-        background: '#333',
-        borderRadius: '2px',
-        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        gap: '4px',
       }}>
         <div style={{
-          width: `${passRate}%`,
-          height: '100%',
-          background: isSuccess ? '#4caf50' : '#ff9800',
-        }} />
+          width: isLatest ? '50px' : '40px',
+          height: isLatest ? '6px' : '4px',
+          background: '#333',
+          borderRadius: '3px',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            width: `${isRunning ? 0 : passRate}%`,
+            height: '100%',
+            background: status === 'success' ? 'linear-gradient(90deg, #4caf50, #81c784)' : status === 'failed' ? 'linear-gradient(90deg, #f44336, #e57373)' : 'linear-gradient(90deg, #2196f3, #64b5f6)',
+            borderRadius: '3px',
+            transition: 'width 0.5s ease',
+          }} />
+        </div>
+        {isLatest && !isRunning && (
+          <span style={{
+            fontSize: '10px',
+            color: '#888',
+            fontFamily: 'monospace',
+            fontWeight: 600,
+          }}>
+            {Math.round(passRate)}%
+          </span>
+        )}
       </div>
     </div>
   );
@@ -400,111 +520,182 @@ const ComparisonCard: React.FC<{
   bestPassRate?: number;
 }> = ({ item, timeLimit, memoryLimit, isLatest, bestRuntime, bestMemory, bestPassRate }) => {
   const passRate = item.totalCount > 0 ? (item.passedCount / item.totalCount) * 100 : 0;
-  const isSuccess = item.passedCount === item.totalCount && item.totalCount > 0;
+  const status = item.status || (item.passedCount === item.totalCount && item.totalCount > 0 ? 'success' : 'failed');
+  const statusConfig = STATUS_CONFIG[status];
+  const isRunning = status === 'running' || status === 'pending';
   const isBestRuntime = bestRuntime !== undefined && item.runtime === bestRuntime;
   const isBestMemory = bestMemory !== undefined && item.memory === bestMemory;
   const isBestPassRate = bestPassRate !== undefined && passRate === bestPassRate && passRate > 0;
 
   return (
     <div style={{
-      background: '#1a1a1a',
-      border: `1px solid ${isLatest ? '#2196f3' : '#333'}`,
-      borderRadius: '8px',
-      padding: '12px',
-      minWidth: '180px',
+      background: isLatest
+        ? `linear-gradient(180deg, ${statusConfig.bg} 0%, #1a1a1a 100%)`
+        : '#1a1a1a',
+      border: `2px solid ${isLatest ? statusConfig.color : '#333'}`,
+      borderRadius: isLatest ? '12px' : '8px',
+      padding: isLatest ? '16px 14px' : '12px',
+      minWidth: isLatest ? '200px' : '180px',
+      position: 'relative',
+      boxShadow: isLatest
+        ? `0 4px 20px ${statusConfig.color}30, inset 0 1px 0 ${statusConfig.color}20`
+        : '0 2px 8px rgba(0, 0, 0, 0.2)',
+      transition: 'all 0.3s ease',
+      transform: isLatest ? 'translateY(-2px)' : 'none',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+      {isLatest && (
+        <div style={{
+          position: 'absolute',
+          top: '-8px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          padding: '3px 10px',
+          background: 'linear-gradient(135deg, #ff9800 0%, #ff5722 100%)',
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: 700,
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(255, 152, 0, 0.4)',
+          letterSpacing: '0.5px',
+          whiteSpace: 'nowrap',
+        }}>
+          ✨ 最新
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', marginTop: isLatest ? '4px' : '0' }}>
         <span style={{
           fontSize: '11px',
-          padding: '2px 8px',
-          borderRadius: '4px',
+          padding: '3px 10px',
+          borderRadius: '6px',
           background: item.type === 'submit' ? 'rgba(33, 150, 243, 0.2)' : 'rgba(156, 39, 176, 0.2)',
           color: item.type === 'submit' ? '#64b5f6' : '#ba68c8',
-          fontWeight: 600,
+          fontWeight: 700,
+          border: `1px solid ${item.type === 'submit' ? 'rgba(33, 150, 243, 0.3)' : 'rgba(156, 39, 176, 0.3)'}`,
         }}>
           {item.type === 'submit' ? '提交' : '运行'}
         </span>
-        {isLatest && (
-          <span style={{ fontSize: '10px', color: '#ff9800', fontWeight: 600 }}>最新</span>
-        )}
+        <span style={{
+          fontSize: '10px',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          background: statusConfig.bg,
+          color: statusConfig.color,
+          fontWeight: 600,
+          border: `1px solid ${statusConfig.border}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}>
+          <span style={{
+            animation: isRunning ? 'spin-pulse 1.5s ease-in-out infinite' : 'none',
+            display: 'inline-block',
+          }}>
+            {statusConfig.icon}
+          </span>
+          {statusConfig.label}
+        </span>
       </div>
 
       <div style={{ marginBottom: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
-          <span style={{ fontSize: '11px', color: '#888' }}>通过率</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+          <span style={{ fontSize: '11px', color: '#888', fontWeight: 500 }}>通过率</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {isBestPassRate && <span style={{ fontSize: '10px', color: '#ff9800' }}>🏆</span>}
+            {isBestPassRate && <span style={{ fontSize: '12px', filter: 'drop-shadow(0 0 4px rgba(255, 152, 0, 0.5))' }}>🏆</span>}
             <span style={{
-              fontSize: '16px',
-              fontWeight: 700,
-              color: isSuccess ? '#4caf50' : '#ff9800',
+              fontSize: isLatest ? '20px' : '16px',
+              fontWeight: 800,
+              color: isRunning ? statusConfig.color : (status === 'success' ? '#4caf50' : '#ff9800'),
               fontFamily: 'monospace',
+              textShadow: isLatest ? `0 0 10px ${statusConfig.color}40` : 'none',
             }}>
-              {Math.round(passRate)}%
+              {isRunning ? '---' : `${Math.round(passRate)}%`}
             </span>
           </div>
         </div>
         <div style={{
           fontSize: '12px',
-          color: '#bbb',
+          color: isRunning ? statusConfig.color : '#bbb',
           fontFamily: 'monospace',
+          fontWeight: isLatest ? 600 : 500,
         }}>
-          {item.passedCount}/{item.totalCount || '-'} 测试用例
+          {isRunning ? '执行中...' : `${item.passedCount}/${item.totalCount || '-'} 测试用例`}
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '12px' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
-            <span style={{ fontSize: '10px', color: '#888' }}>耗时</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+            <span style={{ fontSize: '10px', color: '#888', fontWeight: 500 }}>⏱ 耗时</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              {isBestRuntime && <span style={{ fontSize: '9px', color: '#ff9800' }}>🏆</span>}
+              {isBestRuntime && <span style={{ fontSize: '10px', filter: 'drop-shadow(0 0 3px rgba(255, 152, 0, 0.5))' }}>🏆</span>}
               <span style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#2196f3',
+                fontSize: isLatest ? '14px' : '13px',
+                fontWeight: 700,
+                color: isRunning ? '#666' : '#2196f3',
                 fontFamily: 'monospace',
               }}>
-                {item.runtime !== undefined ? `${item.runtime}ms` : '-'}
+                {isRunning ? '--' : (item.runtime !== undefined ? `${item.runtime}ms` : '-')}
               </span>
             </div>
           </div>
-          <div style={{ height: '4px', background: '#333', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ height: '6px', background: '#333', borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{
               height: '100%',
-              width: `${item.runtime !== undefined ? Math.min((item.runtime / timeLimit) * 100, 100) : 0}%`,
-              background: '#2196f3',
+              width: `${isRunning ? 0 : (item.runtime !== undefined ? Math.min((item.runtime / timeLimit) * 100, 100) : 0)}%`,
+              background: 'linear-gradient(90deg, #2196f3, #64b5f6)',
+              borderRadius: '3px',
+              transition: 'width 0.5s ease',
             }} />
           </div>
         </div>
 
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
-            <span style={{ fontSize: '10px', color: '#888' }}>内存</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+            <span style={{ fontSize: '10px', color: '#888', fontWeight: 500 }}>💾 内存</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              {isBestMemory && <span style={{ fontSize: '9px', color: '#ff9800' }}>🏆</span>}
+              {isBestMemory && <span style={{ fontSize: '10px', filter: 'drop-shadow(0 0 3px rgba(255, 152, 0, 0.5))' }}>🏆</span>}
               <span style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#9c27b0',
+                fontSize: isLatest ? '14px' : '13px',
+                fontWeight: 700,
+                color: isRunning ? '#666' : '#9c27b0',
                 fontFamily: 'monospace',
               }}>
-                {item.memory !== undefined ? `${item.memory}MB` : '-'}
+                {isRunning ? '--' : (item.memory !== undefined ? `${item.memory}MB` : '-')}
               </span>
             </div>
           </div>
-          <div style={{ height: '4px', background: '#333', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ height: '6px', background: '#333', borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{
               height: '100%',
-              width: `${item.memory !== undefined ? Math.min((item.memory / memoryLimit) * 100, 100) : 0}%`,
-              background: '#9c27b0',
+              width: `${isRunning ? 0 : (item.memory !== undefined ? Math.min((item.memory / memoryLimit) * 100, 100) : 0)}%`,
+              background: 'linear-gradient(90deg, #9c27b0, #ba68c8)',
+              borderRadius: '3px',
+              transition: 'width 0.5s ease',
             }} />
           </div>
         </div>
       </div>
 
-      <div style={{ marginTop: '8px', fontSize: '10px', color: '#666' }}>
-        {formatTime(item.timestamp)} · {item.language}
+      <div style={{
+        marginTop: '12px',
+        fontSize: '10px',
+        color: isLatest ? '#888' : '#666',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontWeight: 500,
+      }}>
+        <span>{formatTime(item.timestamp)}</span>
+        <span style={{
+          padding: '2px 6px',
+          background: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: '3px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          {item.language}
+        </span>
       </div>
     </div>
   );
@@ -781,20 +972,25 @@ export const SubmissionResult: React.FC<SubmissionResultProps> = ({
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
+            gap: '16px',
             fontSize: '11px',
             color: '#666',
           }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '8px', height: '8px', background: '#4caf50', borderRadius: '50%' }} />
-              通过
+              <span style={{ width: '10px', height: '10px', background: '#4caf50', borderRadius: '50%', boxShadow: '0 0 6px rgba(76, 175, 80, 0.5)' }} />
+              <span style={{ color: '#4caf50', fontWeight: 500 }}>通过</span>
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '8px', height: '8px', background: '#f44336', borderRadius: '50%' }} />
-              失败
+              <span style={{ width: '10px', height: '10px', background: '#f44336', borderRadius: '50%', boxShadow: '0 0 6px rgba(244, 67, 54, 0.5)' }} />
+              <span style={{ color: '#f44336', fontWeight: 500 }}>失败</span>
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span>🏆</span> 最佳
+              <span style={{ width: '10px', height: '10px', background: '#2196f3', borderRadius: '50%', boxShadow: '0 0 6px rgba(33, 150, 243, 0.5)', animation: 'pulse-border 1.5s ease-in-out infinite' }} />
+              <span style={{ color: '#2196f3', fontWeight: 500 }}>运行中</span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>🏆</span>
+              <span style={{ fontWeight: 500 }}>最佳</span>
             </span>
           </div>
         </div>
@@ -978,7 +1174,14 @@ export const SubmissionResult: React.FC<SubmissionResultProps> = ({
                         label: `#${comparisonData.items.length - idx}`,
                         value: item.passedCount,
                         max: item.totalCount || 1,
-                        color: item.passedCount === item.totalCount && item.totalCount > 0 ? '#4caf50' : '#ff9800',
+                        color: item.status === 'running'
+                          ? '#2196f3'
+                          : item.status === 'failed'
+                          ? '#f44336'
+                          : item.passedCount === item.totalCount && item.totalCount > 0
+                          ? '#4caf50'
+                          : '#ff9800',
+                        status: item.status as 'running' | 'success' | 'failed',
                       })).reverse()}
                     />
                   </div>
@@ -1090,6 +1293,28 @@ export const SubmissionResult: React.FC<SubmissionResultProps> = ({
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes pulse-border {
+          0%, 100% {
+            box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 0 6px rgba(33, 150, 243, 0);
+          }
+        }
+
+        @keyframes spin-pulse {
+          0%, 100% {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.1) rotate(180deg);
+            opacity: 0.8;
+          }
+        }
+      `}</style>
     </div>
   );
 };
