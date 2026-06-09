@@ -23,6 +23,13 @@ export interface ExecutionHistoryItem {
   status: 'pending' | 'running' | 'success' | 'failed';
 }
 
+export interface StatusChangeNotification {
+  id: string;
+  oldStatus: InterviewRoom['status'];
+  newStatus: InterviewRoom['status'];
+  timestamp: string;
+}
+
 interface InterviewState {
   problems: Problem[];
   currentProblem: Problem | null;
@@ -43,6 +50,7 @@ interface InterviewState {
   invitations: CandidateInvitation[];
   participants: ParticipantStatus[];
   isConnected: boolean;
+  statusChangeNotification: StatusChangeNotification | null;
   setProblem: (p: Problem) => void;
   setCode: (code: string) => void;
   setLanguage: (lang: string) => void;
@@ -64,6 +72,7 @@ interface InterviewState {
   updateInvitationStatus: (invitationId: string, status: string) => void;
   updateParticipant: (participant: ParticipantStatus) => void;
   setIsConnected: (connected: boolean) => void;
+  setStatusChangeNotification: (notification: StatusChangeNotification | null) => void;
   resetRoom: () => void;
   setProblems: (problems: Problem[]) => void;
   addProblem: (problem: Problem) => void;
@@ -78,6 +87,7 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   isRunning: false, isSubmitting: false, lastRunResult: null, lastSubmissionResult: null,
   executionHistory: [],
   currentUser: null, myRooms: [], currentRoom: null, invitations: [], participants: [], isConnected: false,
+  statusChangeNotification: null,
   setProblem: (p) => set({ currentProblem: p }),
   setCode: (code) => set({ code }),
   setLanguage: (lang) => {
@@ -104,7 +114,24 @@ export const useInterviewStore = create<InterviewState>((set) => ({
   setRoom: (room) => set({ deprecatedRoom: room, room, currentRoom: room }),
   setCurrentUser: (user) => set({ currentUser: user }),
   setMyRooms: (rooms) => set({ myRooms: rooms }),
-  setCurrentRoom: (room) => set({ currentRoom: room, deprecatedRoom: room, room }),
+  setCurrentRoom: (room) => set((state) => {
+    const oldRoom = state.currentRoom;
+    if (oldRoom && room && oldRoom.status !== room.status) {
+      const notification: StatusChangeNotification = {
+        id: `status-change-${Date.now()}`,
+        oldStatus: oldRoom.status,
+        newStatus: room.status,
+        timestamp: new Date().toISOString(),
+      };
+      return {
+        currentRoom: room,
+        deprecatedRoom: room,
+        room,
+        statusChangeNotification: notification,
+      };
+    }
+    return { currentRoom: room, deprecatedRoom: room, room };
+  }),
   setInvitations: (invitations) => set({ invitations }),
   setParticipants: (participants) => set({ participants }),
   addInvitation: (invitation) => set((state) => ({ invitations: [...state.invitations, invitation] })),
@@ -125,6 +152,7 @@ export const useInterviewStore = create<InterviewState>((set) => ({
     return { participants: [...state.participants, participant] };
   }),
   setIsConnected: (connected) => set({ isConnected: connected }),
+  setStatusChangeNotification: (notification) => set({ statusChangeNotification: notification }),
   resetRoom: () => set({
     currentRoom: null, deprecatedRoom: null, room: null,
     currentProblem: null,
@@ -132,6 +160,7 @@ export const useInterviewStore = create<InterviewState>((set) => ({
     executionHistory: [],
     lastRunResult: null,
     lastSubmissionResult: null,
+    statusChangeNotification: null,
   }),
   setProblems: (problems) => set({ problems }),
   addProblem: (problem) => set((state) => ({ problems: [problem, ...state.problems] })),

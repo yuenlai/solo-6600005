@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { getRoomParticipants, updateRoomStatus, getRoomById, heartbeat } from '../services/interviewRoomService';
 import { subscribeParticipants, sendHeartbeat, connect, disconnect } from '../services/websocketService';
 import { useInterviewStore } from '../store/interview';
-import { ParticipantStatus } from '../types';
+import { ParticipantStatus, getRoomStatusConfig, formatTime } from '../types';
 
 const formatTimeAgo = (dateString: string): string => {
   const now = new Date().getTime();
@@ -154,14 +154,6 @@ const ParticipantList: React.FC<ParticipantListProps> = ({ roomId }) => {
     };
   }, [participants]);
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  };
-
   const getInvitationForParticipant = (participant: ParticipantStatus) => {
     return invitations.find(
       (inv) => inv.candidateEmail === participant.userName || inv.candidateName === participant.userName
@@ -229,16 +221,6 @@ const ParticipantList: React.FC<ParticipantListProps> = ({ roomId }) => {
       disconnect();
     };
   }, [roomId, currentUser, fetchParticipants, fetchRoomDetails, sendHttpHeartbeat, setParticipants]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'WAITING': return '#ff9800';
-      case 'ACTIVE': return '#4caf50';
-      case 'COMPLETED': return '#2196f3';
-      case 'CANCELLED': return '#f44336';
-      default: return '#666';
-    }
-  };
 
   return (
     <>
@@ -366,10 +348,11 @@ const ParticipantList: React.FC<ParticipantListProps> = ({ roomId }) => {
                 borderRadius: '12px',
                 fontSize: '12px',
                 fontWeight: 500,
-                backgroundColor: getStatusColor(currentRoom.status) + '20',
-                color: getStatusColor(currentRoom.status),
+                backgroundColor: getRoomStatusConfig(currentRoom.status).bgColor,
+                color: getRoomStatusConfig(currentRoom.status).color,
+                border: '1px solid ' + getRoomStatusConfig(currentRoom.status).color + '40',
               }}>
-                {currentRoom.status}
+                {getRoomStatusConfig(currentRoom.status).icon} {getRoomStatusConfig(currentRoom.status).label}
               </span>
             </div>
 

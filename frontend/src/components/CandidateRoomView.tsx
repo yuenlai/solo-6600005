@@ -2,10 +2,10 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRoomById, getRoomParticipants, heartbeat } from '../services/interviewRoomService';
 import { connect, disconnect, subscribeParticipants, subscribeRoomStatus, sendHeartbeat } from '../services/websocketService';
-import { useInterviewStore } from '../store/interview';
+import { useInterviewStore, StatusChangeNotification } from '../store/interview';
 import { ProblemPanel } from './ProblemPanel';
 import { CodeEditor } from './CodeEditor';
-import { ParticipantStatus } from '../types';
+import { ParticipantStatus, getRoomStatusConfig, formatDuration, formatTime } from '../types';
 import { getProblemById } from '../services/problemService';
 
 const CandidateRoomView: React.FC = () => {
@@ -21,14 +21,20 @@ const CandidateRoomView: React.FC = () => {
     updateParticipant,
     resetRoom,
     setProblem,
+    statusChangeNotification,
+    setStatusChangeNotification,
   } = useInterviewStore();
   const [loading, setLoading] = useState(true);
   const [participantsPanelOpen, setParticipantsPanelOpen] = useState(false);
   const [problemPanelWidth, setProblemPanelWidth] = useState(380);
   const [isDragging, setIsDragging] = useState(false);
+  const [duration, setDuration] = useState<string>('');
+  const [localStatusNotification, setLocalStatusNotification] = useState<StatusChangeNotification | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const minPanelWidth = 300;
   const maxPanelWidth = 600;
+  const durationTimerRef = useRef<number | null>(null);
+  const notificationTimerRef = useRef<number | null>(null);
 
   const fetchRoomDetails = useCallback(async () => {
     if (!roomId) return;
@@ -64,32 +70,67 @@ const CandidateRoomView: React.FC = () => {
     }
   }, [roomId, currentUser, updateParticipant]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'WAITING': return '#ff9800';
-      case 'ACTIVE': return '#4caf50';
-      case 'COMPLETED': return '#2196f3';
-      case 'CANCELLED': return '#f44336';
-      default: return '#666';
+  const updateDuration = useCallback(() => {
+    if (!currentRoom) return;
+    if (currentRoom.status === 'WAITING') {
+      setDuration(formatDuration(currentRoom.createdAt));
+    } else if (currentRoom.status === 'ACTIVE' && currentRoom.startedAt) {
+      setDuration(formatDuration(currentRoom.startedAt));
+    } else if (currentRoom.status === 'COMPLETED' && currentRoom.startedAt && currentRoom.endedAt) {
+      setDuration(formatDuration(currentRoom.startedAt, currentRoom.endedAt));
+    }
+  }, [currentRoom]);
+
+  useEffect(() => {
+    updateDuration();
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+    }
+    if (currentRoom && (currentRoom.status === 'WAITING' || currentRoom.status === 'ACTIVE')) {
+      durationTimerRef.current = window.setInterval(updateDuration, 1000);
+    }
+    return () => {
+      if (durationTimerRef.current) {
+        clearInterval(durationTimerRef.current);
+      }
+    };
+  }, [currentRoom?.status, currentRoom?.createdAt, currentRoom?.startedAt, currentRoom?.endedAt, updateDuration]);
+
+  useEffect(() => {
+    if (statusChangeNotification) {
+      setLocalStatusNotification(statusChangeNotification);
+      setStatusChangeNotification(null);
+      if (notificationTimerRef.current) {
+        clearTimeout(notificationTimerRef.current);
+      }
+      notificationTimerRef.current = window.setTimeout(() => {
+        setLocalStatusNotification(null);
+        notificationTimerRef.current = null;
+      }, 5000);
+    }
+    return () => {
+      if (notificationTimerRef.current) {
+        clearTimeout(notificationTimerRef.current);
+      }
+    };
+  }, [statusChangeNotification, setStatusChangeNotification]);
+
+  const getStatusDurationLabel = () => {
+    if (!currentRoom) return '';
+    switch (currentRoom.status) {
+      case 'WAITING': return `已等待 ${duration}`;
+      case 'ACTIVE': return `已进行 ${duration}`;
+      case 'COMPLETED': return `面试时长 ${duration}`;
+      default: return '';
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'WAITING': return '等待面试官开始面试...';
-      case 'ACTIVE': return '面试进行中...';
-      case 'COMPLETED': return '面试已结束';
-      case 'CANCELLED': return '面试已取消';
-      default: return status;
+  const closeStatusNotification = () => {
+    setLocalStatusNotification(null);
+    if (notificationTimerRef.current) {
+      clearTimeout(notificationTimerRef.current);
+      notificationTimerRef.current = null;
     }
-  };
-
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
   };
 
   const handleBack = () => {
@@ -296,9 +337,108 @@ const CandidateRoomView: React.FC = () => {
     );
   }
 
-  const statusColor = getStatusColor(currentRoom.status);
+  const statusConfig = getRoomStatusConfig(currentRoom.status);
 
   return (
+    <>
+      <style>{`
+        @keyframes slideInDown {
+          from {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        @keyframes statusPulse {
+          0%, 100% {
+            box-shadow: 0 0 8px currentColor;
+          }
+          50% {
+            box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+          }
+        }
+        @keyframes statusBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        .status-notification {
+          animation: slideInDown 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        .status-indicator-pulse {
+          animation: statusPulse 2s ease-in-out infinite;
+        }
+        .status-blink {
+          animation: statusBlink 1.5s ease-in-out infinite;
+        }
+      `}</style>
+
+      {localStatusNotification && (
+        <div
+          className="status-notification"
+          style={{
+            position: 'fixed',
+            top: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: 'linear-gradient(135deg, ' + getRoomStatusConfig(localStatusNotification.newStatus).color + ', ' + getRoomStatusConfig(localStatusNotification.newStatus).color + 'dd)',
+            color: '#fff',
+            padding: '16px 28px',
+            borderRadius: '12px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            minWidth: '360px',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+          }}
+        >
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '24px',
+          }}>
+            {getRoomStatusConfig(localStatusNotification.newStatus).icon}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '2px' }}>
+              {getRoomStatusConfig(localStatusNotification.oldStatus).label} → {getRoomStatusConfig(localStatusNotification.newStatus).label}
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: 600 }}>
+              面试状态已变更
+            </div>
+            <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '2px' }}>
+              {getRoomStatusConfig(localStatusNotification.newStatus).description}
+            </div>
+          </div>
+          <button
+            onClick={closeStatusNotification}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#fff',
+              fontSize: '20px',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              opacity: 0.8,
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
     <div ref={containerRef} style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', background: '#0d0d0d', userSelect: isDragging ? 'none' : 'auto' }}>
       <div style={{
         width: '56px',
@@ -372,44 +512,87 @@ const CandidateRoomView: React.FC = () => {
         <div style={{
           background: '#1e1e1e',
           borderBottom: '1px solid #333',
-          padding: '8px 16px',
+          padding: '12px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '16px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-            <h2 style={{ color: '#fff', margin: 0, fontSize: '16px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentRoom.title}</h2>
-            <span style={{
-              padding: '3px 10px',
-              borderRadius: '10px',
-              fontSize: '11px',
-              fontWeight: 500,
-              background: statusColor + '20',
-              color: statusColor,
-              whiteSpace: 'nowrap',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
+            <h2 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentRoom.title}</h2>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              background: statusConfig.bgColor,
+              border: '1px solid ' + statusConfig.color + '40',
+              flexShrink: 0,
             }}>
-              {currentRoom.status}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{
-                width: '6px', height: '6px',
+                width: '10px',
+                height: '10px',
                 borderRadius: '50%',
-                background: statusColor,
-                animation: 'pulse 2s infinite',
-              }} />
+                background: statusConfig.color,
+                color: statusConfig.color,
+              }} className={(currentRoom.status === 'WAITING' || currentRoom.status === 'ACTIVE') ? 'status-indicator-pulse' : ''} />
               <span style={{
-                color: statusColor,
+                fontSize: '13px',
+                fontWeight: 600,
+                color: statusConfig.color,
+                whiteSpace: 'nowrap',
+              }}>
+                {statusConfig.icon} {statusConfig.label}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+              <span style={{
                 fontSize: '12px',
+                color: statusConfig.color,
                 fontWeight: 500,
                 whiteSpace: 'nowrap',
               }}>
-                {getStatusText(currentRoom.status)}
+                {statusConfig.description}
               </span>
+              <div style={{ width: '1px', height: '16px', background: '#333' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: '#666' }}>⏱</span>
+                <span style={{
+                  fontSize: '12px',
+                  color: statusConfig.color,
+                  fontWeight: 500,
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap',
+                }} className={currentRoom.status === 'ACTIVE' ? 'status-blink' : ''}>
+                  {getStatusDurationLabel()}
+                </span>
+              </div>
             </div>
+            {currentRoom.startedAt && (
+              <div style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                开始于 {formatTime(currentRoom.startedAt)}
+              </div>
+            )}
           </div>
-          <div style={{ color: '#888', fontSize: '12px', whiteSpace: 'nowrap' }}>
-            房间码: <span style={{ color: '#4caf50', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '1px' }}>{currentRoom.roomCode}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+            <div style={{ color: '#888', fontSize: '13px', whiteSpace: 'nowrap' }}>
+              房间码: <span style={{ color: '#4caf50', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '1px' }}>{currentRoom.roomCode}</span>
+            </div>
+            {currentRoom.status === 'COMPLETED' && (
+              <div style={{
+                padding: '8px 16px',
+                background: 'rgba(33, 150, 243, 0.1)',
+                border: '1px solid rgba(33, 150, 243, 0.3)',
+                borderRadius: '6px',
+                fontSize: '13px',
+                color: '#2196f3',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+              }}>
+                面试已完成
+              </div>
+            )}
           </div>
         </div>
 
@@ -568,14 +751,8 @@ const CandidateRoomView: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
     </div>
+    </>
   );
 };
 

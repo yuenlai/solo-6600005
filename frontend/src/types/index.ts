@@ -229,3 +229,82 @@ export interface JoinRoomResponse {
   room: InterviewRoom;
   message?: string;
 }
+
+export interface RoomStatusConfig {
+  value: InterviewRoom['status'];
+  label: string;
+  description: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+export const ROOM_STATUS_CONFIGS: RoomStatusConfig[] = [
+  {
+    value: 'WAITING',
+    label: '等待中',
+    description: '等待面试官开始面试',
+    icon: '⏳',
+    color: '#ff9800',
+    bgColor: 'rgba(255, 152, 0, 0.15)',
+    borderColor: '#ff9800',
+  },
+  {
+    value: 'ACTIVE',
+    label: '进行中',
+    description: '面试正在进行',
+    icon: '▶️',
+    color: '#4caf50',
+    bgColor: 'rgba(76, 175, 80, 0.15)',
+    borderColor: '#4caf50',
+  },
+  {
+    value: 'COMPLETED',
+    label: '已结束',
+    description: '面试已结束',
+    icon: '✅',
+    color: '#2196f3',
+    bgColor: 'rgba(33, 150, 243, 0.15)',
+    borderColor: '#2196f3',
+  },
+  {
+    value: 'CANCELLED',
+    label: '已取消',
+    description: '面试已取消',
+    icon: '❌',
+    color: '#f44336',
+    bgColor: 'rgba(244, 67, 54, 0.15)',
+    borderColor: '#f44336',
+  },
+];
+
+export const getRoomStatusConfig = (status: string): RoomStatusConfig => {
+  return ROOM_STATUS_CONFIGS.find(s => s.value === status) || ROOM_STATUS_CONFIGS[0];
+};
+
+export const formatDuration = (startTime: string, endTime?: string): string => {
+  const start = new Date(startTime).getTime();
+  const end = endTime ? new Date(endTime).getTime() : Date.now();
+  const diffMs = Math.max(0, end - start);
+
+  const seconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) {
+    return `${hours}小时${minutes % 60}分钟`;
+  }
+  if (minutes > 0) {
+    return `${minutes}分钟${seconds % 60}秒`;
+  }
+  return `${seconds}秒`;
+};
+
+export const formatTime = (dateString: string): string => {
+  return new Date(dateString).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
